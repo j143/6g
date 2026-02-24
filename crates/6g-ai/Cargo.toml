@@ -1,0 +1,10 @@
+[package]
+name = "sixg-ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sixg-common = { path = "../6g-common" }
+thiserror.workspace = true
+serde.workspace = true

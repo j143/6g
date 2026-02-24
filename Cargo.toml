@@ -1,0 +1,56 @@
+[package]
+name = "sixg"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sixg"
+path = "src/main.rs"
+
+[dependencies]
+sixg-common  = { path = "crates/6g-common" }
+sixg-phy     = { path = "crates/6g-phy" }
+sixg-mac     = { path = "crates/6g-mac" }
+sixg-rlc     = { path = "crates/6g-rlc" }
+sixg-pdcp    = { path = "crates/6g-pdcp" }
+sixg-rrc     = { path = "crates/6g-rrc" }
+sixg-isac    = { path = "crates/6g-isac" }
+sixg-ai      = { path = "crates/6g-ai" }
+sixg-ntn     = { path = "crates/6g-ntn" }
+sixg-semantic = { path = "crates/6g-semantic" }
+sixg-core    = { path = "crates/6g-core" }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[workspace]
+resolver = "2"
+members = [
+    ".",
+    "crates/6g-common",
+    "crates/6g-phy",
+    "crates/6g-mac",
+    "crates/6g-rlc",
+    "crates/6g-pdcp",
+    "crates/6g-rrc",
+    "crates/6g-isac",
+    "crates/6g-ai",
+    "crates/6g-ntn",
+    "crates/6g-semantic",
+    "crates/6g-core",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["6G Contributors"]
+repository = "https://github.com/j143/6g"
+
+[workspace.dependencies]
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
