@@ -1,0 +1,12 @@
+[package]
+name = "sixg-mac"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sixg-common = { path = "../6g-common" }
+sixg-phy    = { path = "../6g-phy" }
+sixg-ai     = { path = "../6g-ai" }
+thiserror.workspace = true
+serde.workspace = true
