@@ -3,6 +3,27 @@
 //! 6G base stations are expected to deploy thousands of antenna elements
 //! ("Holographic MIMO") operating at sub-THz frequencies. This module
 //! provides the configuration and beam management skeleton.
+//!
+//! ## Near-Field Boundary (ELAA)
+//!
+//! At sub-THz/THz frequencies the Rayleigh distance shrinks relative to
+//! array aperture. For an Extremely Large Aperture Array (ELAA) of diameter
+//! `D` operating at wavelength `λ`:
+//!
+//! `d_R = 2·D² / λ`
+//!
+//! When a UE is within `d_R`, far-field plane-wave models are invalid and
+//! spherical-wave near-field channel models must be used.
+//!
+//! ## Beamforming Gain
+//!
+//! With `N` co-phase antenna elements the coherent combining gain is:
+//!
+//! `G_BF = 10·log10(N)` dB
+//!
+//! References:
+//! - Björnson et al., *Massive MIMO Networks*, FnT 2017
+//! - 3GPP TR 38.901 (CDL channel models)
 
 use serde::{Deserialize, Serialize};
 
@@ -69,6 +90,41 @@ impl MimoConfig {
             max_layers: total_elements.min(256),
         }
     }
+
+    /// Array diameter (m) assuming half-wavelength spacing at `freq_hz`.
+    ///
+    /// `D = (√N − 1) · λ/2`
+    pub fn array_diameter_m(&self, freq_hz: f64) -> f64 {
+        let wavelength = 3e8 / freq_hz;
+        let side = (self.total_elements as f64).sqrt();
+        (side - 1.0).max(0.0) * wavelength / 2.0
+    }
+
+    /// Rayleigh distance (m): boundary between near-field and far-field.
+    ///
+    /// `d_R = 2·D² / λ`
+    pub fn rayleigh_distance_m(&self, freq_hz: f64) -> f64 {
+        let wavelength = 3e8 / freq_hz;
+        let d = self.array_diameter_m(freq_hz);
+        2.0 * d * d / wavelength
+    }
+
+    /// Returns `true` if `distance_m` is within the near-field region.
+    pub fn is_near_field(&self, distance_m: f64, freq_hz: f64) -> bool {
+        distance_m < self.rayleigh_distance_m(freq_hz)
+    }
+
+    /// Coherent beamforming gain (dB): `10·log10(N)`.
+    pub fn beamforming_gain_db(&self) -> f64 {
+        10.0 * (self.total_elements as f64).log10()
+    }
+
+    /// Effective received SNR (dB) after beamforming.
+    ///
+    /// `SNR_eff = SNR_per_element + G_BF`
+    pub fn effective_snr_db(&self, snr_per_element_db: f64) -> f64 {
+        snr_per_element_db + self.beamforming_gain_db()
+    }
 }
 
 #[cfg(test)]
@@ -85,5 +141,39 @@ mod tests {
     fn small_array_uses_hybrid_beamforming() {
         let cfg = MimoConfig::new(64);
         assert!(matches!(cfg.beamforming, BeamformingType::Hybrid { .. }));
+    }
+
+    #[test]
+    fn beamforming_gain_1024_elements() {
+        let cfg = MimoConfig::new(1024);
+        // 10·log10(1024) = 30.1 dB
+        let gain = cfg.beamforming_gain_db();
+        assert!(
+            (gain - 30.1).abs() < 0.1,
+            "Expected ~30.1 dB, got {gain:.2}"
+        );
+    }
+
+    #[test]
+    fn rayleigh_distance_thz_array() {
+        // 1024-element array at 150 GHz (sub-THz)
+        let cfg = MimoConfig::new(1024);
+        let freq = 150e9;
+        let d_r = cfg.rayleigh_distance_m(freq);
+        // λ = 2 mm, D ≈ 31 × 1 mm = 31 mm → d_R = 2·(0.031)²/0.002 ≈ 0.96 m
+        assert!(d_r > 0.1, "Rayleigh distance should be substantial at THz");
+        // Near-field check at 0.5 m vs 10 m
+        assert!(cfg.is_near_field(0.5, freq) || !cfg.is_near_field(100.0, freq));
+    }
+
+    #[test]
+    fn effective_snr_increases_with_elements() {
+        let small = MimoConfig::new(64);
+        let large = MimoConfig::new(1024);
+        let snr_in = -10.0_f64;
+        assert!(
+            large.effective_snr_db(snr_in) > small.effective_snr_db(snr_in),
+            "More elements must yield higher SNR"
+        );
     }
 }

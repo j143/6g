@@ -3,9 +3,73 @@
 //! 6G is designed to exploit a wide range of spectrum bands from below 6 GHz
 //! up to the THz range. This module tracks band assignments, channel
 //! bandwidths, and carrier aggregation configurations.
+//!
+//! ## Path Loss Model
+//!
+//! Total path loss (dB):
+//! ```text
+//! PL(d) = FSPL(d, f) + α(f) · d
+//! ```
+//! where `FSPL` is the free-space path loss and `α` is the molecular
+//! absorption coefficient (dB/m) as a function of frequency.
+//!
+//! References: ITU-R P.676 (molecular absorption), 3GPP TR 38.901.
 
 use serde::{Deserialize, Serialize};
 use sixg_common::types::FrequencyBand;
+
+/// Speed of light (m/s).
+const C: f64 = 3.0e8;
+
+/// Free-space path loss in dB between an isotropic transmitter and receiver.
+///
+/// `FSPL(d, f) = 20·log10(4πdf/c)`
+pub fn fspl_db(distance_m: f64, freq_hz: f64) -> f64 {
+    let d = distance_m.max(1e-3); // avoid log(0)
+    20.0 * (4.0 * std::f64::consts::PI * d * freq_hz / C).log10()
+}
+
+/// Molecular absorption coefficient α (dB/m) at the given frequency.
+///
+/// This is a simplified piecewise model capturing the dominant absorption
+/// peaks. Values are derived from ITU-R P.676 and published sub-THz
+/// measurement campaigns:
+///
+/// | Frequency     | Dominant absorber | Peak α (dB/m) |
+/// |---------------|-------------------|---------------|
+/// | ~60 GHz       | O₂ resonance      | ~1.5 dB/m     |
+/// | ~120 GHz      | O₂ harmonic       | ~0.05 dB/m    |
+/// | ~183 GHz      | H₂O resonance     | ~10 dB/m      |
+/// | ~325 GHz      | H₂O wing          | ~2 dB/m       |
+/// | elsewhere     | Broadband wing    | <0.01 dB/m    |
+pub fn molecular_absorption_coeff(freq_hz: f64) -> f64 {
+    let f_ghz = freq_hz / 1e9;
+
+    // O₂ peak near 60 GHz (dominant in mmWave)
+    let o2_60 = 1.5 * gaussian(f_ghz, 60.0, 5.0);
+    // O₂ harmonic near 120 GHz
+    let o2_120 = 0.05 * gaussian(f_ghz, 120.0, 8.0);
+    // H₂O peak near 183 GHz
+    let h2o_183 = 10.0 * gaussian(f_ghz, 183.0, 10.0);
+    // H₂O peak near 325 GHz
+    let h2o_325 = 2.0 * gaussian(f_ghz, 325.0, 15.0);
+    // Broadband background absorption
+    let background = 0.001 * (f_ghz / 100.0).powi(2);
+
+    o2_60 + o2_120 + h2o_183 + h2o_325 + background
+}
+
+/// Unit-height Gaussian bell curve centred at `centre` with std-dev `sigma`.
+fn gaussian(x: f64, centre: f64, sigma: f64) -> f64 {
+    (-(x - centre).powi(2) / (2.0 * sigma.powi(2))).exp()
+}
+
+/// Total path loss (dB) including free-space and molecular absorption.
+///
+/// `PL(d) = FSPL(d, f) + α(f) · d`
+pub fn path_loss_db(distance_m: f64, freq_hz: f64) -> f64 {
+    fspl_db(distance_m, freq_hz) + molecular_absorption_coeff(freq_hz) * distance_m
+}
 
 /// Channel bandwidth options (MHz).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -60,6 +124,43 @@ impl SpectrumManager {
     pub fn total_bandwidth_mhz(&self) -> u32 {
         self.channel_bandwidth.mhz() * self.component_carriers as u32
     }
+
+    /// Centre frequency in Hz for the default carrier of this band.
+    pub fn center_freq_hz(&self) -> f64 {
+        match self.band {
+            FrequencyBand::SubSixGhz => 3.5e9,
+            FrequencyBand::MidBand => 15.0e9,
+            FrequencyBand::MmWave => 60.0e9,
+            FrequencyBand::SubThz => 150.0e9,
+            FrequencyBand::Thz => 300.0e9,
+        }
+    }
+
+    /// Total path loss (dB) at `distance_m` using this band's centre frequency.
+    ///
+    /// Combines free-space path loss with molecular absorption:
+    /// `PL(d) = FSPL(d, f) + α(f) · d`
+    pub fn path_loss_db(&self, distance_m: f64) -> f64 {
+        path_loss_db(distance_m, self.center_freq_hz())
+    }
+
+    /// Estimated received SNR (dB) given transmit power and noise figure.
+    ///
+    /// `SNR = P_tx_dBm − PL(d) − noise_floor_dBm − NF_dB`
+    ///
+    /// Noise floor = `10·log10(k·T·B)` where B is the total aggregated
+    /// bandwidth.
+    pub fn received_snr_db(
+        &self,
+        tx_power_dbm: f64,
+        distance_m: f64,
+        noise_figure_db: f64,
+    ) -> f64 {
+        // Thermal noise power in dBm: N0 = -174 dBm/Hz + 10·log10(B_Hz)
+        let bandwidth_hz = (self.total_bandwidth_mhz() as f64) * 1e6;
+        let noise_floor_dbm = -174.0 + 10.0 * bandwidth_hz.log10();
+        tx_power_dbm - self.path_loss_db(distance_m) - noise_floor_dbm - noise_figure_db
+    }
 }
 
 #[cfg(test)]
@@ -70,5 +171,65 @@ mod tests {
     fn thz_spectrum_manager_reports_large_bandwidth() {
         let sm = SpectrumManager::new(FrequencyBand::Thz);
         assert_eq!(sm.total_bandwidth_mhz(), 160_000);
+    }
+
+    #[test]
+    fn fspl_increases_with_distance() {
+        let f = 150e9; // 150 GHz
+        let pl_10m = fspl_db(10.0, f);
+        let pl_100m = fspl_db(100.0, f);
+        assert!(pl_100m > pl_10m, "FSPL must increase with distance");
+        // 10× distance → +20 dB for FSPL
+        let delta = pl_100m - pl_10m;
+        assert!(
+            (delta - 20.0).abs() < 0.5,
+            "FSPL 10× distance delta should be ~20 dB, got {delta:.2}"
+        );
+    }
+
+    #[test]
+    fn o2_absorption_peak_at_60ghz() {
+        let alpha_60 = molecular_absorption_coeff(60e9);
+        let alpha_30 = molecular_absorption_coeff(30e9);
+        assert!(
+            alpha_60 > alpha_30,
+            "Absorption at 60 GHz should exceed 30 GHz"
+        );
+    }
+
+    #[test]
+    fn h2o_absorption_peak_at_183ghz() {
+        let alpha_183 = molecular_absorption_coeff(183e9);
+        let alpha_150 = molecular_absorption_coeff(150e9);
+        assert!(
+            alpha_183 > alpha_150,
+            "H2O peak at 183 GHz should exceed 150 GHz"
+        );
+    }
+
+    #[test]
+    fn path_loss_increases_with_distance_at_150ghz() {
+        let pl_10 = path_loss_db(10.0, 150e9);
+        let pl_100 = path_loss_db(100.0, 150e9);
+        assert!(pl_100 > pl_10);
+    }
+
+    #[test]
+    fn spectrum_manager_path_loss_method() {
+        let sm = SpectrumManager::new(FrequencyBand::SubThz);
+        let pl = sm.path_loss_db(100.0);
+        // At 150 GHz, 100 m: FSPL ≈ 116 dB + molecular absorption (~4.5 dB)
+        assert!(pl > 100.0 && pl < 130.0, "Unexpected path loss {pl:.1} dB");
+    }
+
+    #[test]
+    fn received_snr_decreases_with_distance() {
+        let sm = SpectrumManager::new(FrequencyBand::SubThz);
+        let snr_10m = sm.received_snr_db(30.0, 10.0, 7.0);
+        let snr_100m = sm.received_snr_db(30.0, 100.0, 7.0);
+        assert!(
+            snr_10m > snr_100m,
+            "SNR must decrease with distance: {snr_10m:.1} vs {snr_100m:.1}"
+        );
     }
 }
