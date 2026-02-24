@@ -7,18 +7,13 @@
 use serde::{Deserialize, Serialize};
 
 /// ISAC waveform type.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IsacWaveform {
     /// OFDM-based Dual-Function Radar Communications.
+    #[default]
     Dfrc,
     /// OTFS-based joint sensing and communication.
     OtfsIsac,
     /// AI-optimised joint waveform.
     AiOptimised,
-}
-
-impl Default for IsacWaveform {
-    fn default() -> Self {
-        Self::Dfrc
-    }
 }

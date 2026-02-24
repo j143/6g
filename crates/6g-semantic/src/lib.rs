@@ -65,9 +65,7 @@ pub struct SemanticLayer {
 
 impl SemanticLayer {
     pub fn new() -> Self {
-        Self {
-            codecs: Vec::new(),
-        }
+        Self { codecs: Vec::new() }
     }
 
     pub fn register_codec(&mut self, codec: Box<dyn SemanticCodec>) {

@@ -28,9 +28,7 @@ pub enum Waveform {
         doppler_bins: usize,
     },
     /// AI-shaped waveform – parameters learned end-to-end.
-    AiNative {
-        latent_dim: usize,
-    },
+    AiNative { latent_dim: usize },
 }
 
 impl Waveform {

@@ -2,6 +2,68 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Frequency value in Hz, covering the full 6G spectrum up to THz range.
+///
+/// Use the convenience constructors (`from_ghz`, `from_thz`) to create values.
+/// The internal representation is Hz stored as `f64`.
+///
+/// # Examples
+/// ```
+/// use sixg_common::types::Frequency;
+/// let f = Frequency::from_ghz(150.0); // 150 GHz (Sub-THz band)
+/// assert!((f.as_hz() - 150e9).abs() < 1.0);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Frequency(f64); // Hz
+
+impl Frequency {
+    /// Create a `Frequency` from a value in hertz.
+    pub fn from_hz(hz: f64) -> Self {
+        Self(hz)
+    }
+
+    /// Create a `Frequency` from a value in gigahertz (GHz).
+    pub fn from_ghz(ghz: f64) -> Self {
+        Self(ghz * 1e9)
+    }
+
+    /// Create a `Frequency` from a value in terahertz (THz).
+    pub fn from_thz(thz: f64) -> Self {
+        Self(thz * 1e12)
+    }
+
+    /// Return the frequency in hertz.
+    pub fn as_hz(self) -> f64 {
+        self.0
+    }
+
+    /// Return the frequency in gigahertz.
+    pub fn as_ghz(self) -> f64 {
+        self.0 / 1e9
+    }
+
+    /// Return the frequency in terahertz.
+    pub fn as_thz(self) -> f64 {
+        self.0 / 1e12
+    }
+
+    /// Classify this frequency into a [`FrequencyBand`].
+    pub fn band(self) -> FrequencyBand {
+        let ghz = self.as_ghz();
+        if ghz < 6.0 {
+            FrequencyBand::SubSixGhz
+        } else if ghz < 24.0 {
+            FrequencyBand::MidBand
+        } else if ghz < 100.0 {
+            FrequencyBand::MmWave
+        } else if ghz < 300.0 {
+            FrequencyBand::SubThz
+        } else {
+            FrequencyBand::Thz
+        }
+    }
+}
+
 /// Frequency band classification for 6G spectrum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FrequencyBand {
@@ -29,6 +91,10 @@ pub struct NodeId(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BearerId(pub u8);
 
+/// Network slice identifier (S-NSSAI / slice index).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SliceId(pub u16);
+
 /// A raw byte payload.
 pub type Payload = Vec<u8>;
 
@@ -47,5 +113,39 @@ pub struct Position3D {
 impl Position3D {
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frequency_thz_round_trip() {
+        let f = Frequency::from_thz(1.0);
+        assert!((f.as_thz() - 1.0).abs() < 1e-9);
+        assert!((f.as_hz() - 1e12).abs() < 1.0);
+    }
+
+    #[test]
+    fn frequency_ghz_round_trip() {
+        let f = Frequency::from_ghz(150.0);
+        assert!((f.as_ghz() - 150.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn frequency_band_classification() {
+        assert_eq!(Frequency::from_ghz(3.5).band(), FrequencyBand::SubSixGhz);
+        assert_eq!(Frequency::from_ghz(15.0).band(), FrequencyBand::MidBand);
+        assert_eq!(Frequency::from_ghz(60.0).band(), FrequencyBand::MmWave);
+        assert_eq!(Frequency::from_ghz(150.0).band(), FrequencyBand::SubThz);
+        assert_eq!(Frequency::from_thz(1.0).band(), FrequencyBand::Thz);
+    }
+
+    #[test]
+    fn slice_id_distinct() {
+        let s1 = SliceId(1);
+        let s2 = SliceId(2);
+        assert_ne!(s1, s2);
     }
 }
