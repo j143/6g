@@ -15,9 +15,9 @@ pub mod waveform;
 use sixg_common::config::SystemConfig;
 
 pub use mimo::MimoConfig;
-pub use ris::RisConfig;
-pub use spectrum::SpectrumManager;
-pub use waveform::Waveform;
+pub use ris::{RisChannel, RisConfig};
+pub use spectrum::{path_loss_db, SpectrumManager};
+pub use waveform::{bpsk_ber_awgn, ofdm_ber_high_doppler, Waveform};
 
 /// Entry point for the 6G physical layer.
 pub struct PhyLayer {
