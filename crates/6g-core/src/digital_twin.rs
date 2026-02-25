@@ -78,9 +78,7 @@ pub struct SnapshotDiff {
 impl SnapshotDiff {
     /// Returns `true` when no differences were detected.
     pub fn is_empty(&self) -> bool {
-        self.added_ues.is_empty()
-            && self.removed_ues.is_empty()
-            && self.changed_slices.is_empty()
+        self.added_ues.is_empty() && self.removed_ues.is_empty() && self.changed_slices.is_empty()
     }
 }
 

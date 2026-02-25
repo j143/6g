@@ -84,7 +84,10 @@ impl SbaV2Registry {
 
     /// Number of UEs that have passed inline token validation.
     pub fn validated_ue_count(&self) -> usize {
-        self.registrations.iter().filter(|r| r.token_validated).count()
+        self.registrations
+            .iter()
+            .filter(|r| r.token_validated)
+            .count()
     }
 
     /// Total number of registration attempts (including rejected ones).
