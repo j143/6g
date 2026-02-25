@@ -20,9 +20,11 @@
 
 pub mod amf;
 pub mod digital_twin;
+pub mod nas_5g;
 pub mod nssf;
 pub mod pcf;
 pub mod sba_v2;
+pub mod session_comparison;
 pub mod smf;
 pub mod upf;
 
