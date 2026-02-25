@@ -1,0 +1,27 @@
+{
+  "experiment": "exp_003_5g_sa_comparison",
+  "description": "Phase 4 core-network comparison: 6G SBAv2 vs 5G SA (srsRAN) for session and data serving",
+  "control_plane": {
+    "fiveg_nas_min_round_trips": 4,
+    "sixg_sbav2_round_trips": 1,
+    "fiveg_nas_min_messages_per_ue": 6,
+    "sixg_sbav2_messages_per_ue": 1
+  },
+  "data_plane": {
+    "bandwidth_mhz": 20,
+    "spectral_efficiency_factor": 0.75,
+    "snr_points_db": [0, 5, 10, 15, 20]
+  },
+  "scale_test": {
+    "ue_counts": [1, 5, 10, 20, 50]
+  },
+  "tolerances": {
+    "level_1_pct": 0.0,
+    "level_2_pct": 5.0
+  },
+  "references": {
+    "control_plane": "3GPP TS 23.501 — 5G NAS Registration procedure",
+    "data_plane": "srsRAN Project 5G SA — https://www.srsran.com",
+    "architecture": "Qualcomm 6G Foundry: Rethinking the Control Plane"
+  }
+}
