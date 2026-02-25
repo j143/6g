@@ -2,7 +2,20 @@
 
 ## Purpose
 
-RRC manages the connection lifecycle between the UE and the network: establishment, reconfiguration, mobility, and release. 6G proposals simplify RRC by reducing the number of state transitions and moving more decisions into the AI engine.
+RRC manages the connection lifecycle between the UE and the network: establishment, reconfiguration, mobility, and release. 6G proposals simplify RRC by reducing the number of state transitions and moving more decisions into the AI engine. Entry point: `RrcLayer`.
+
+## Invariants
+
+<!-- Things that must ALWAYS be true, regardless of changes -->
+- `RrcState` transitions are strictly: `Idle → Inactive → Connected` (forward) and `Connected → Inactive → Idle` (backward). No state skips allowed.
+- `UeContext` is created on `RrcState::Connected` entry and destroyed on `RrcState::Idle` entry.
+- `RrcLayer` is the only component that modifies `RrcState` — no other crate changes UE RRC state directly.
+
+## Key Types
+
+- `RrcState` — Idle, Inactive, Connected
+- `UeContext` — per-UE state during an active RRC connection
+- `RrcLayer` — crate entry point managing all UE contexts
 
 ## States
 
@@ -21,6 +34,12 @@ RRC manages the connection lifecycle between the UE and the network: establishme
 ```
 
 The `Inactive` state is a key 6G efficiency feature: the UE retains the AS context while the RRC connection is suspended, enabling fast resumption without full re-establishment.
+
+## What This Crate Does NOT Do
+
+- Does not implement MAC or PHY — connection setup triggers those layers separately.
+- Does not implement NAS (non-access stratum) — NAS is handled by `6g-core` (AMF).
+- Does not store persistent UE subscription data — that is UDM's responsibility.
 
 ## 6G Simplification Hypothesis
 

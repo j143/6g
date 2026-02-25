@@ -5,8 +5,15 @@
 `6g-ai` provides the inference dispatch infrastructure used by every other crate that embeds AI/ML decisions. Its role is to:
 
 1. Define the `AiModel` trait (a common interface for any learned model).
-2. Dispatch inference requests to the appropriate backend (CPU, CUDA NPU).
+2. Dispatch inference requests to the appropriate backend (`AiBackend`: CPU, CUDA, NPU).
 3. Act as a model registry in future phases (load/store ONNX models via `ort`).
+
+## Invariants
+
+<!-- Things that must ALWAYS be true, regardless of changes -->
+- `6g-ai` only depends on `6g-common` — it must never depend on domain crates (`6g-phy`, `6g-mac`, etc.).
+- `AiModel::infer()` is always deterministic for a given input (no hidden state between calls).
+- `AiBackend::Cpu` must always be available as a fallback regardless of hardware.
 
 ## Architecture
 
@@ -16,9 +23,9 @@
         ▼
   AiEngine::infer()
         │
-        ├── Backend::Cpu  → run model on CPU (ndarray / candle)
-        ├── Backend::Cuda → run model on GPU (CUDA via cuDNN)
-        └── Backend::Npu  → run model on NPU accelerator
+        ├── AiBackend::Cpu  → run model on CPU (ndarray / candle)
+        ├── AiBackend::Cuda → run model on GPU (CUDA via cuDNN)
+        └── AiBackend::Npu  → run model on NPU accelerator
         │
         ▼
   InferenceResult { output: Vec<f32>, latency_us: u64 }
@@ -34,6 +41,12 @@ pub trait AiModel: Send + Sync {
 ```
 
 Implementations: channel estimator (MLP), scheduler policy (DQN), semantic encoder/decoder (autoencoder).
+
+## What This Crate Does NOT Do
+
+- Does not implement domain-specific logic (no channel models, no scheduling heuristics).
+- Does not train models (inference only).
+- Does not depend on `6g-phy`, `6g-mac`, or any other domain crate.
 
 ## 6G Rationale
 

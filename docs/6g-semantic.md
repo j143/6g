@@ -2,7 +2,15 @@
 
 ## Purpose
 
-Semantic communications shift the transmission objective from **bit accuracy** to **meaning preservation** or **task success**. Rather than minimising BER, the system minimises semantic distortion (e.g., classification accuracy, control error) while maximising compression.
+Semantic communications shift the transmission objective from **bit accuracy** to **meaning preservation** or **task success**. Rather than minimising BER, the system minimises semantic distortion (e.g., classification accuracy, control error) while maximising compression. Key types: `SemanticPacket`, `SemanticLayer`.
+
+## Invariants
+
+<!-- Things that must ALWAYS be true, regardless of changes -->
+- `SemanticLayer` encodes to a smaller payload than the input — compression ratio must be < 1.0.
+- `SemanticPacket` always carries a task identifier so the decoder knows what to reconstruct.
+- The encode/decode pair must be a semantic round-trip: `decode(encode(x))` preserves the task-relevant information from `x`.
+- `6g-semantic` depends only on `6g-ai` and `6g-common` — never on PHY or MAC crates.
 
 ## Architecture
 
@@ -39,6 +47,12 @@ pub trait SemanticCodec: Send + Sync {
 ```
 
 Phase 5 will implement a real encoder using a pre-trained sentence transformer loaded via ONNX Runtime (`ort` crate).
+
+## What This Crate Does NOT Do
+
+- Does not implement the PHY or MAC transmission — hands the compressed packet to the standard 6G stack.
+- Does not implement model training.
+- Does not depend on `6g-phy`, `6g-mac`, `6g-rlc`, `6g-pdcp`, or `6g-rrc`.
 
 ## Validation Target (Phase 5)
 
