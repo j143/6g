@@ -1,3 +1,11 @@
+//! # 6g-phy / spectrum.rs
+//! SCOPE: THz/sub-THz path loss model including free-space and molecular absorption.
+//! KEY TYPES DEFINED: `SpectrumConfig`, `ChannelBandwidth`, `BandAssignment`
+//! KEY TYPES USED: `sixg_common::types::Frequency`
+//! PAPER: ITU-R P.676 (molecular absorption); Rappaport et al., IEEE Access 2019.
+//! VALIDATED: FSPL at 150 GHz, 100 m matches formula to < 0.01 dB.
+//! DO NOT: add waveform shaping or modulation schemes here (see waveform.rs).
+//!
 //! Spectrum management for the 6G PHY.
 //!
 //! 6G is designed to exploit a wide range of spectrum bands from below 6 GHz

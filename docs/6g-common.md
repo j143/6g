@@ -4,6 +4,15 @@
 
 `6g-common` is the foundational crate of the workspace. It provides the shared type vocabulary used by every other crate. All cross-crate API boundaries are expressed in terms of the types defined here.
 
+## Invariants
+
+<!-- Things that must ALWAYS be true, regardless of changes -->
+- `Frequency` stores Hz internally as `f64`; constructors and accessors are lossless for values up to 3 THz.
+- `FrequencyBand` boundaries are fixed: Sub-6 GHz < 6 GHz, MidBand 6–24 GHz, MmWave 24–100 GHz, SubThz 100–300 GHz, Thz ≥ 300 GHz.
+- `SystemConfig` is the **single** feature-flag registry. Every optional subsystem is gated through it — never through ad-hoc booleans in individual crates.
+- `ValidationCheck::new` automatically computes `passed` from `|actual − expected| / |expected| × 100 ≤ tolerance_pct`.
+- `Payload` is always `Vec<u8>` — no compression or encoding at this layer.
+
 ## Design Decisions
 
 ### `Frequency`
@@ -22,18 +31,39 @@ Represents a frequency value in Hz with a `f64` internal representation. Covers 
 
 Three-dimensional Cartesian coordinates in metres. Used by `6g-ntn` for satellite/HAPS/UAV positions and by `6g-phy` for near-field channel geometry.
 
-### `BearerId` / `SliceId`
+### `UeId` / `NodeId` / `BearerId` / `SliceId`
 
-Typed wrappers over primitive integers to prevent accidental mixing of bearer and slice identifiers at compile time.
+Typed wrappers over primitive integers to prevent accidental mixing of bearer and slice identifiers at compile time. `UeId` identifies a User Equipment, `NodeId` identifies a base station (gNB/TRP), `BearerId` identifies a radio bearer, `SliceId` identifies a network slice.
+
+### `SnrDb`
+
+Signal-to-Noise Ratio stored as a `f64` dB value. Use this instead of bare `f64` at API boundaries where SNR is a meaningful physical quantity.
 
 ### `Payload`
 
 Type alias for `Vec<u8>`. All protocol data units flow as byte vectors; upper layers add semantic structure.
 
-## What This Is Not
+### `ValidationResult` / `ValidationCheck` / `Validate`
+
+Structured numerical self-validation framework. Every physics module implements the `Validate` trait so that CI can verify known-good numerical results automatically. See `validation.rs`.
+
+## Public API Contract
+
+- `Frequency::from_hz(hz: f64) -> Frequency` — wrap a raw Hz value
+- `Frequency::from_ghz(ghz: f64) -> Frequency` — convert GHz → Hz internally
+- `Frequency::from_thz(thz: f64) -> Frequency` — convert THz → Hz internally
+- `Frequency::band(self) -> FrequencyBand` — classify by spectrum band
+- `SystemConfig::default() -> SystemConfig` — returns a 6G-ready default config
+- `ValidationCheck::new(name, actual, expected, tolerance_pct) -> ValidationCheck`
+- `ValidationResult::passed(&self) -> bool`
+- `ValidationResult::summary(&self) -> String`
+
+## What This Crate Does NOT Do
 
 - No I/O, no async, no network sockets.
 - No feature-gated code — this crate must compile on all targets without optional features.
+- No physics calculations — those belong in `6g-phy`, `6g-isac`, etc.
+- No protocol logic of any kind.
 
 ## References
 

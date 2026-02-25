@@ -1,3 +1,11 @@
+//! # 6g-phy / ris.rs
+//! SCOPE: Reconfigurable Intelligent Surface (RIS) phase-shift optimization and SNR gain.
+//! KEY TYPES DEFINED: `RisConfig`, `RisChannel`
+//! KEY TYPES USED: `sixg_common::types::Frequency`, `SnrDb`
+//! PAPER: Basar et al., "Wireless Communications Through RIS", IEEE Access 2019.
+//! VALIDATED: Optimal phase alignment gives SNR gain ≥ 0 dB vs no-RIS baseline.
+//! DO NOT: implement MAC-layer scheduling or beam management here.
+//!
 //! Reconfigurable Intelligent Surfaces (RIS).
 //!
 //! RIS are passive (or semi-passive) surfaces made of programmable

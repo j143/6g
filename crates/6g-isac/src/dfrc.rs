@@ -1,3 +1,12 @@
+//! # 6g-isac / dfrc.rs
+//! SCOPE: DFRC waveform power split and Cramér-Rao bound for range estimation.
+//! KEY TYPES DEFINED: `DfrcConfig`, `ParetoPoint`
+//! KEY TYPES USED: none from other crates (pure math module)
+//! PAPER: Kay, "Fundamentals of Statistical Signal Processing", Vol I, Ch 3;
+//!        Liu et al., IEEE J. Sel. Areas Commun. 2018.
+//! VALIDATED: `crb_range_m2()` matches Kay eq. 3.31 at B=1 GHz, γ=1 → 1.14e-3 m²
+//! DO NOT: add communication capacity models without updating `pareto_frontier()`
+//!
 //! Dual-Function Radar Communications (DFRC) waveform model.
 //!
 //! DFRC embeds sensing sequences into OFDM subcarriers so that a single
@@ -163,6 +172,43 @@ pub struct ParetoPoint {
     pub communication_sinr: f64,
 }
 
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+use sixg_common::validation::{Validate, ValidationCheck, ValidationResult};
+
+/// Unit struct used to implement [`Validate`] for the DFRC module.
+pub struct DfrcValidation;
+
+impl Validate for DfrcValidation {
+    fn validate() -> ValidationResult {
+        // Reference: Kay, SPSS Vol. I, eq. 3.31
+        // CRB = c² / (8π²B²γ_s)
+        // At B = 1 GHz, γ_s = 1 (0 dB):
+        //   CRB = (3e8)² / (8π²(1e9)²) ≈ 1.1379e-3 m²
+        let cfg = DfrcConfig::new(1.0, 1e9, 1, 1);
+        let crb = cfg.crb_range_m2(1.0);
+        let expected = C * C / (8.0 * std::f64::consts::PI.powi(2) * 1e18_f64);
+
+        // At α = 1 (all power to sensing), capacity must be zero.
+        let cap_at_full_sensing = cfg.capacity_bps(1.0);
+
+        ValidationResult {
+            module: "6g-isac/dfrc",
+            checks: vec![
+                ValidationCheck::new("crb_kay_eq3_31", crb, expected, 0.001),
+                ValidationCheck::new(
+                    "capacity_zero_at_full_sensing",
+                    cap_at_full_sensing,
+                    0.0,
+                    0.0,
+                ),
+            ],
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,5 +313,15 @@ mod tests {
         let cfg = DfrcConfig::new(100.0, 1e9, 64, 256);
         let ratio = cfg.default_sensing_ratio();
         assert!((ratio - 0.25).abs() < 1e-10, "64/256 = 0.25, got {ratio}");
+    }
+
+    #[test]
+    fn dfrc_validation_passes() {
+        let result = DfrcValidation::validate();
+        assert!(
+            result.passed(),
+            "DFRC validation failed:\n{}",
+            result.summary()
+        );
     }
 }

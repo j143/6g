@@ -38,3 +38,35 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+
+  dep-graph:
+    name: Dependency Graph
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check dependency graph
+        run: cargo tree --workspace --edges normal | python3 scripts/check_dep_graph.py
+
+  doc-sync:
+    name: Doc-Code Sync
+    runs-on: ubuntu-latest
+    # Advisory: fails when new public types are added without updating docs.
+    # Existing gaps are tracked and should be closed incrementally.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check doc-code sync
+        run: python3 scripts/check_doc_sync.py
+
+  primitive-leakage:
+    name: Type Safety
+    runs-on: ubuntu-latest
+    # Advisory: flags bare f64 parameters that should use domain newtypes.
+    # Existing violations will be fixed as new newtypes are added to 6g-common.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check primitive leakage at public API boundaries
+        run: python3 scripts/check_primitive_leakage.py

@@ -1,0 +1,9 @@
+{
+  "description": "DFRC Pareto frontier sweep: sensing ratio vs CRB and capacity",
+  "total_snr_linear": 100.0,
+  "bandwidth_hz": 1000000000.0,
+  "sensing_subcarriers": 64,
+  "total_subcarriers": 256,
+  "num_pareto_points": 20,
+  "paper": "Liu et al., IEEE J. Sel. Areas Commun. 2018"
+}

@@ -2,7 +2,21 @@
 
 ## Purpose
 
-RLC sits between PDCP and MAC. It segments/reassembles PDUs, provides in-sequence delivery, and handles retransmissions in AM mode. 6G inherits the three RLC modes from 5G NR directly; the evolution is in tighter integration with the AI-native MAC scheduler.
+RLC sits between PDCP and MAC. It segments/reassembles PDUs, provides in-sequence delivery, and handles retransmissions in AM mode. 6G inherits the three RLC modes from 5G NR directly; the evolution is in tighter integration with the AI-native MAC scheduler. Entry point: `RlcLayer`.
+
+## Invariants
+
+<!-- Things that must ALWAYS be true, regardless of changes -->
+- `RlcMode::Tm` (Transparent Mode) never applies segmentation or ARQ.
+- `RlcMode::Am` (Acknowledged Mode) always uses ARQ — STATUS PDU with poll bit.
+- Each `RlcEntity` maps 1:1 to a `BearerId` from `6g-common`.
+- Sequence numbers are 12 bits (AM) or 6/12 bits (UM); extension to 18 bits requires an explicit config flag.
+
+## Key Types
+
+- `RlcMode` — Tm (transparent), Um (unacknowledged), Am (acknowledged)
+- `RlcEntity` — per-bearer RLC state machine
+- `RlcLayer` — crate entry point managing all active entities
 
 ## Modes
 
@@ -18,6 +32,12 @@ RLC sits between PDCP and MAC. It segments/reassembles PDUs, provides in-sequenc
 - Sequence numbers are 12 bits (AM) or 6/12 bits (UM), matching 5G NR baseline; 6G may extend to 18 bits for very high throughput.
 - Segmentation produces RLC SDU segments with a Segment Offset field; reassembly reconstructs the SDU at the receiver.
 - AM retransmission uses a STATUS PDU feedback mechanism (polling bit + ACK/NACK list).
+
+## What This Crate Does NOT Do
+
+- Does not implement PDCP ciphering or header compression — see `6g-pdcp`.
+- Does not implement MAC scheduling or HARQ — see `6g-mac`.
+- Does not depend on any crate other than `6g-common`.
 
 ## 6G Delta vs 5G NR
 
