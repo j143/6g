@@ -26,6 +26,7 @@
 //! - 3GPP TR 38.901 (CDL channel models)
 
 use serde::{Deserialize, Serialize};
+use sixg_common::types::{Distance, Frequency, SnrDb};
 
 /// Antenna panel geometry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,27 +92,27 @@ impl MimoConfig {
         }
     }
 
-    /// Array diameter (m) assuming half-wavelength spacing at `freq_hz`.
+    /// Array diameter (m) assuming half-wavelength spacing at `freq`.
     ///
     /// `D = (√N − 1) · λ/2`
-    pub fn array_diameter_m(&self, freq_hz: f64) -> f64 {
-        let wavelength = 3e8 / freq_hz;
+    pub fn array_diameter_m(&self, freq: Frequency) -> Distance {
+        let wavelength = 3e8 / freq.as_hz();
         let side = (self.total_elements as f64).sqrt();
-        (side - 1.0).max(0.0) * wavelength / 2.0
+        Distance::from_m((side - 1.0).max(0.0) * wavelength / 2.0)
     }
 
     /// Rayleigh distance (m): boundary between near-field and far-field.
     ///
     /// `d_R = 2·D² / λ`
-    pub fn rayleigh_distance_m(&self, freq_hz: f64) -> f64 {
-        let wavelength = 3e8 / freq_hz;
-        let d = self.array_diameter_m(freq_hz);
-        2.0 * d * d / wavelength
+    pub fn rayleigh_distance_m(&self, freq: Frequency) -> Distance {
+        let wavelength = 3e8 / freq.as_hz();
+        let d = self.array_diameter_m(freq).as_m();
+        Distance::from_m(2.0 * d * d / wavelength)
     }
 
-    /// Returns `true` if `distance_m` is within the near-field region.
-    pub fn is_near_field(&self, distance_m: f64, freq_hz: f64) -> bool {
-        distance_m < self.rayleigh_distance_m(freq_hz)
+    /// Returns `true` if `distance` is within the near-field region.
+    pub fn is_near_field(&self, distance: Distance, freq: Frequency) -> bool {
+        distance.as_m() < self.rayleigh_distance_m(freq).as_m()
     }
 
     /// Coherent beamforming gain (dB): `10·log10(N)`.
@@ -122,8 +123,8 @@ impl MimoConfig {
     /// Effective received SNR (dB) after beamforming.
     ///
     /// `SNR_eff = SNR_per_element + G_BF`
-    pub fn effective_snr_db(&self, snr_per_element_db: f64) -> f64 {
-        snr_per_element_db + self.beamforming_gain_db()
+    pub fn effective_snr_db(&self, snr_per_element: SnrDb) -> SnrDb {
+        SnrDb(snr_per_element.0 + self.beamforming_gain_db())
     }
 }
 
@@ -158,21 +159,24 @@ mod tests {
     fn rayleigh_distance_thz_array() {
         // 1024-element array at 150 GHz (sub-THz)
         let cfg = MimoConfig::new(1024);
-        let freq = 150e9;
-        let d_r = cfg.rayleigh_distance_m(freq);
+        let freq = Frequency::from_hz(150e9);
+        let d_r = cfg.rayleigh_distance_m(freq).as_m();
         // λ = 2 mm, D ≈ 31 × 1 mm = 31 mm → d_R = 2·(0.031)²/0.002 ≈ 0.96 m
         assert!(d_r > 0.1, "Rayleigh distance should be substantial at THz");
         // Near-field check at 0.5 m vs 10 m
-        assert!(cfg.is_near_field(0.5, freq) || !cfg.is_near_field(100.0, freq));
+        assert!(
+            cfg.is_near_field(Distance::from_m(0.5), freq)
+                || !cfg.is_near_field(Distance::from_m(100.0), freq)
+        );
     }
 
     #[test]
     fn effective_snr_increases_with_elements() {
         let small = MimoConfig::new(64);
         let large = MimoConfig::new(1024);
-        let snr_in = -10.0_f64;
+        let snr_in = SnrDb(-10.0);
         assert!(
-            large.effective_snr_db(snr_in) > small.effective_snr_db(snr_in),
+            large.effective_snr_db(snr_in).0 > small.effective_snr_db(snr_in).0,
             "More elements must yield higher SNR"
         );
     }

@@ -43,6 +43,7 @@
 //! - Wu & Zhang, *Towards Smart and Reconfigurable Environment*, IEEE Commun. Mag. 2020
 
 use serde::{Deserialize, Serialize};
+use sixg_common::types::{PowerDb, SnrLinear};
 
 /// Phase-shift resolution of each RIS element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,15 +139,15 @@ impl RisChannel {
     /// Received SNR (linear) without RIS given transmit SNR `snr_tx`.
     ///
     /// `SNR_rx = snr_tx · |h_d|²`
-    pub fn snr_no_ris(&self, snr_tx: f64) -> f64 {
-        snr_tx * self.h_direct.powi(2)
+    pub fn snr_no_ris(&self, snr_tx: SnrLinear) -> SnrLinear {
+        SnrLinear::new(snr_tx.as_linear() * self.h_direct.powi(2))
     }
 
     /// Received SNR (linear) with optimal RIS phase alignment.
     ///
     /// `SNR_rx_opt = snr_tx · |H_opt|²`
-    pub fn snr_opt_ris(&self, snr_tx: f64) -> f64 {
-        snr_tx * self.h_opt_ris().powi(2)
+    pub fn snr_opt_ris(&self, snr_tx: SnrLinear) -> SnrLinear {
+        SnrLinear::new(snr_tx.as_linear() * self.h_opt_ris().powi(2))
     }
 
     /// SNR gain (dB) from deploying the RIS with optimal phase alignment.
@@ -154,13 +155,13 @@ impl RisChannel {
     /// Returns `None` when the direct-path SNR is zero (shadowed scenario),
     /// which would give an infinite dB gain.  In that case the RIS is
     /// providing connectivity that did not exist at all without it.
-    pub fn snr_gain_db(&self, snr_tx: f64) -> Option<f64> {
-        let snr_no = self.snr_no_ris(snr_tx);
+    pub fn snr_gain_db(&self, snr_tx: SnrLinear) -> Option<PowerDb> {
+        let snr_no = self.snr_no_ris(snr_tx).as_linear();
         if snr_no <= 0.0 {
             return None; // infinite gain — RIS creates the link
         }
-        let snr_opt = self.snr_opt_ris(snr_tx);
-        Some(10.0 * (snr_opt / snr_no).log10())
+        let snr_opt = self.snr_opt_ris(snr_tx).as_linear();
+        Some(PowerDb::new(10.0 * (snr_opt / snr_no).log10()))
     }
 }
 
@@ -188,10 +189,11 @@ mod tests {
             0.01, // RIS → UE
             ris,
         );
-        let snr_tx = 1.0; // normalized transmit SNR
+        let snr_tx = SnrLinear::new(1.0); // normalized transmit SNR
         let gain_db = channel
             .snr_gain_db(snr_tx)
-            .expect("Direct path present, gain should be finite");
+            .expect("Direct path present, gain should be finite")
+            .as_db();
         assert!(
             gain_db > 10.0,
             "RIS gain in shadowed scenario should exceed 10 dB, got {gain_db:.1} dB"
@@ -202,7 +204,7 @@ mod tests {
     fn ris_always_improves_snr() {
         // Even without shadowing, RIS should increase SNR
         let channel = RisChannel::new(0.1, 0.05, 0.05, RisConfig::default());
-        let snr_tx = 1.0;
+        let snr_tx = SnrLinear::new(1.0);
         assert!(
             channel.snr_opt_ris(snr_tx) >= channel.snr_no_ris(snr_tx),
             "RIS must never reduce SNR"
@@ -223,7 +225,7 @@ mod tests {
                 ..RisConfig::default()
             },
         );
-        let snr_tx = 1.0;
+        let snr_tx = SnrLinear::new(1.0);
         assert!(
             ris_1024.snr_opt_ris(snr_tx) > ris_256.snr_opt_ris(snr_tx),
             "More RIS elements must yield higher SNR"
@@ -247,7 +249,7 @@ mod tests {
         // Zero direct path → infinite gain → None
         let channel = RisChannel::new(0.0, 0.05, 0.05, RisConfig::default());
         assert!(
-            channel.snr_gain_db(1.0).is_none(),
+            channel.snr_gain_db(SnrLinear::new(1.0)).is_none(),
             "Infinite gain should return None"
         );
     }
