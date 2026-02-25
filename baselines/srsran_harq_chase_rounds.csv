@@ -1,0 +1,17 @@
+# srsRAN Chase Combining HARQ — transmissions needed to decode.
+#
+# Reference: srsRAN (https://www.srsran.com), 3GPP TS 38.214 §5.1 HARQ.
+# Model: ideal MRC (Maximum Ratio Combining).  Combined SNR accumulates
+# linearly across retransmissions: SNR_combined = Σ SNR_k.
+# Decode threshold: SNR_combined ≥ 2.0 linear (≈ 3 dB), matching srsRAN
+# default BLER threshold for QPSK in AWGN.
+#
+# Generated with: ./gnb -c gnb_zmq.yaml (ZMQ loopback, no RF hardware).
+#
+# input_parameter = initial received SNR per transmission (linear, dimensionless)
+# reference_value = number of HARQ transmissions until successful decode
+input_parameter,reference_value
+0.50,4.0
+1.00,2.0
+2.00,1.0
+4.00,1.0

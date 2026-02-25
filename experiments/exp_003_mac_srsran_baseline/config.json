@@ -1,0 +1,25 @@
+{
+  "description": "MAC/RLC layer validation against srsRAN (HARQ) and ns-3 NR (scheduler fairness)",
+  "reference_systems": {
+    "scheduler_fairness": "ns-3 NR 5G-LENA cttc-nr-demo (Round Robin)",
+    "harq_chase_combining": "srsRAN ZMQ loopback, 3GPP TS 38.214 §5.1"
+  },
+  "scheduler": {
+    "policy": "RoundRobin",
+    "n_ues": 20,
+    "n_tis": 100,
+    "total_rbs": 100,
+    "snr_db_values": [5.0, 10.0, 15.0, 20.0]
+  },
+  "harq": {
+    "decode_snr_threshold_linear": 2.0,
+    "max_retx": 4,
+    "snr_linear_test_values": [0.5, 1.0, 2.0, 4.0]
+  },
+  "tolerance_pct": 1.0,
+  "papers": [
+    "3GPP TS 38.214 v17.3.0 (HARQ, MCS tables)",
+    "CTTC 5G-LENA: https://gitlab.com/cttc-lena/nr",
+    "srsRAN: https://www.srsran.com"
+  ]
+}
