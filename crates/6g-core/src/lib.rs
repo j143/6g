@@ -17,9 +17,11 @@
 //! Phase 4 additions:
 //! * [`sba_v2`] – Service-Based Architecture v2 (flat inline-auth registry)
 //! * [`digital_twin`] – Digital Twin snapshot + diff mechanism
+//! * [`gnb`] – `GnbNode` bridging RRC/PDCP layers to N2/N3 core interfaces
 
 pub mod amf;
 pub mod digital_twin;
+pub mod gnb;
 pub mod nssf;
 pub mod pcf;
 pub mod sba_v2;
@@ -28,6 +30,7 @@ pub mod upf;
 
 pub use amf::Amf;
 pub use digital_twin::DigitalTwin;
+pub use gnb::GnbNode;
 pub use nssf::NetworkSliceSelector;
 pub use pcf::Pcf;
 pub use sba_v2::SbaV2Registry;

@@ -26,9 +26,9 @@ The 6G Core Network handles control-plane signalling for registration, session m
 
 ## What This Crate Does NOT Do
 
-- Does not implement the RAN (no MAC, PHY, or RRC logic).
+- Does not implement the RAN PHY layer (no MAC, waveform, or channel model logic).
 - Does not implement the UE side of NAS — this is the network-side only.
-- Does not depend on `6g-phy`, `6g-mac`, `6g-rlc`, `6g-pdcp`, or `6g-rrc`.
+- Does not depend on `6g-phy`, `6g-mac`, or `6g-rlc`.
 
 ## 6G Architectural Direction (Phase 4 — Implemented)
 
@@ -51,7 +51,45 @@ Research hypothesis: replace the 5G NAS multi-message exchange (≥ 4 round trip
 
 Key types: `ServiceToken` (16-byte pre-provisioned credential), `SbaV2Registry` (flat registry, no AUSF/UDM chain), `SbaRegistration` (record per UE), `SbaV2Validation` (`Validate` impl — checks round-trip count reduction and inline rejection logic).
 
-### Digital Twin Stub (`digital_twin.rs`)
+### `GnbNode` — gNB proxy bridging RAN layers to the Core (`gnb.rs`)
+
+A simulated gNB node that collapses the real RU/DU/CU split into a single struct for simulation purposes. It wires the existing `RrcLayer` (control plane) and `PdcpEntity` (user-plane header processing) to N2/N3 interface stubs that call into `Amf` and `Upf`.
+
+| Member | Type | Role |
+|---|---|---|
+| `node_id` | `NodeId` | Unique cell / TRP identifier |
+| `rrc` | `RrcLayer` | UE state machines (Idle / Inactive / Connected) |
+| `pdcp` | `PdcpEntity` (private) | Default DRB — SN + ROHC header compression |
+
+**Key methods:**
+
+| Method | Interface | Description |
+|---|---|---|
+| `attach(ue)` | RRC | Adds UE to `RrcLayer`, moves state to `Connected` |
+| `forward_to_amf(ue, nas)` | N2 | Returns NAS byte count; AMF called by session runner |
+| `forward_uplink(payload, upf)` | N3 | Runs PDCP `process_tx`, then calls `Upf::forward_uplink` |
+
+**Full call flow:**
+
+```
+UE(1)
+ │  RRCSetupRequest
+ ▼
+GnbNode::attach(ue_id)               → rrc.context.state = Connected  [6g-rrc]
+ │  N2: NAS forward to AMF
+ ▼
+Amf::register(ue_id)                 → RegistrationRecord stored      [6g-core/amf]
+Smf::establish_session(ue_id, Ip)    → PduSession assigned            [6g-core/smf]
+ │
+ │  === data plane ===
+ │  UE sends 64-byte payload
+ ▼
+GnbNode::forward_uplink(payload, upf)
+  └─ pdcp.process_tx(payload)        → ROHC compressed PDU            [6g-pdcp via 6g-rrc]
+  └─ upf.forward_uplink(&pdu)        → stats.bytes_uplink += len      [6g-core/upf]
+```
+
+
 
 The network maintains a real-time model of its own state via periodic snapshots:
 - `NetworkSnapshot` — captures all UE states (`UeSnapshot`) and per-slice load percentages.

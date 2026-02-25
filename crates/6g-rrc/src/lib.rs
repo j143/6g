@@ -9,6 +9,8 @@
 
 use sixg_common::types::{NodeId, UeId};
 
+pub use sixg_pdcp::{PdcpConfig, PdcpEntity};
+
 /// RRC connection state of a UE.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RrcState {
