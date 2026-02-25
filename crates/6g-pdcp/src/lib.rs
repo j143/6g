@@ -195,7 +195,11 @@ fn encode_sn(sn: u32, sn_length: u8) -> Vec<u8> {
     if sn_length <= 12 {
         vec![(sn >> 8) as u8, (sn & 0xFF) as u8]
     } else {
-        vec![(sn >> 16) as u8, ((sn >> 8) & 0xFF) as u8, (sn & 0xFF) as u8]
+        vec![
+            (sn >> 16) as u8,
+            ((sn >> 8) & 0xFF) as u8,
+            (sn & 0xFF) as u8,
+        ]
     }
 }
 
@@ -344,7 +348,9 @@ pub struct PdcpLayer {
 
 impl PdcpLayer {
     pub fn new() -> Self {
-        Self { entities: Vec::new() }
+        Self {
+            entities: Vec::new(),
+        }
     }
 
     /// Add a new PDCP entity for the given bearer config.
@@ -421,7 +427,7 @@ mod tests {
         let mut tx = make_entity(12, true);
         let mut rx = make_entity(12, true);
         let data: Payload = vec![0u8; 40]; // simulate IP/UDP packet
-        // First packet → IR
+                                           // First packet → IR
         let pdu0 = tx.process_tx(data.clone());
         assert_eq!(pdu0[0], IR_MARKER, "first ROHC packet must be IR");
         let r0 = rx.process_rx(pdu0).expect("IR round-trip");
@@ -438,7 +444,9 @@ mod tests {
         let mut tx = make_entity(12, false);
         let mut rx = make_entity(12, false);
         let pdu = tx.process_tx(b"test".to_vec());
-        let _ = rx.process_rx(pdu.clone()).expect("first delivery should succeed");
+        let _ = rx
+            .process_rx(pdu.clone())
+            .expect("first delivery should succeed");
         let dup = rx.process_rx(pdu);
         assert!(dup.is_none(), "duplicate PDU must be dropped");
     }
@@ -456,7 +464,10 @@ mod tests {
         // Now send packet with SN=0 which is behind the window.
         // Build a manual PDU with SN=0.
         let old_pdu = vec![0u8, 0u8, 42u8]; // SN=0 (12-bit), payload=42
-        assert!(rx.process_rx(old_pdu).is_none(), "out-of-window PDU must be dropped");
+        assert!(
+            rx.process_rx(old_pdu).is_none(),
+            "out-of-window PDU must be dropped"
+        );
     }
 
     #[test]

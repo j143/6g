@@ -112,7 +112,9 @@ impl HarqManager {
         self.processes[id] = match self.processes[id] {
             HarqState::WaitingAck => HarqState::Retransmitting { attempt: 1 },
             HarqState::Retransmitting { attempt } if attempt < MAX_RETX - 1 => {
-                HarqState::Retransmitting { attempt: attempt + 1 }
+                HarqState::Retransmitting {
+                    attempt: attempt + 1,
+                }
             }
             _ => HarqState::Idle, // flush: MAX_RETX NACKs exhausted
         };
@@ -171,7 +173,10 @@ impl ProactiveHarq {
     ///
     /// `threshold_linear` ≈ 3 dB (2.0), `min_confidence` = 0.8.
     pub fn new() -> Self {
-        Self { threshold_linear: DECODE_SNR_THRESHOLD, min_confidence: 0.8 }
+        Self {
+            threshold_linear: DECODE_SNR_THRESHOLD,
+            min_confidence: 0.8,
+        }
     }
 
     /// Predict whether a retransmission will be needed.
@@ -181,8 +186,7 @@ impl ProactiveHarq {
     ///
     /// Returns `true` if pre-staging is recommended.
     pub fn should_prestage(&self, predicted_snr_linear: f64, prediction_confidence: f64) -> bool {
-        prediction_confidence >= self.min_confidence
-            && predicted_snr_linear < self.threshold_linear
+        prediction_confidence >= self.min_confidence && predicted_snr_linear < self.threshold_linear
     }
 }
 
@@ -225,7 +229,11 @@ mod tests {
         for _ in 0..MAX_RETX {
             mgr.nack(0);
         }
-        assert_eq!(mgr.state(0), Some(HarqState::Idle), "should flush after MAX_RETX NACKs");
+        assert_eq!(
+            mgr.state(0),
+            Some(HarqState::Idle),
+            "should flush after MAX_RETX NACKs"
+        );
     }
 
     #[test]
@@ -234,7 +242,10 @@ mod tests {
         mgr.start(0);
         // Two transmissions each at SNR=1.0 → combined SNR = 2.0 ≥ threshold.
         let decoded = mgr.chase_combine(0, 1.0) || mgr.chase_combine(0, 1.0);
-        assert!(decoded, "combined SNR should exceed threshold after 2 transmissions");
+        assert!(
+            decoded,
+            "combined SNR should exceed threshold after 2 transmissions"
+        );
         assert!((mgr.combined_snr(0) - 2.0).abs() < 1e-9);
     }
 
@@ -249,8 +260,14 @@ mod tests {
     #[test]
     fn proactive_harq_prestages_on_low_snr() {
         let oracle = ProactiveHarq::new();
-        assert!(oracle.should_prestage(1.0, 0.9), "low SNR + high confidence → prestage");
+        assert!(
+            oracle.should_prestage(1.0, 0.9),
+            "low SNR + high confidence → prestage"
+        );
         assert!(!oracle.should_prestage(5.0, 0.9), "good SNR → no prestage");
-        assert!(!oracle.should_prestage(1.0, 0.5), "low confidence → no prestage");
+        assert!(
+            !oracle.should_prestage(1.0, 0.5),
+            "low confidence → no prestage"
+        );
     }
 }
