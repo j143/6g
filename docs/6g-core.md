@@ -49,7 +49,7 @@ Research hypothesis: replace the 5G NAS multi-message exchange (≥ 4 round trip
 | AMF→UE | Registration Accept | Inline service grant |
 | **Round trips** | **≥ 4** | **1** |
 
-Key types: `ServiceToken` (16-byte pre-provisioned credential), `SbaV2Registry` (flat registry, no AUSF/UDM chain), `SbaRegistration` (record per UE).
+Key types: `ServiceToken` (16-byte pre-provisioned credential), `SbaV2Registry` (flat registry, no AUSF/UDM chain), `SbaRegistration` (record per UE), `SbaV2Validation` (`Validate` impl — checks round-trip count reduction and inline rejection logic).
 
 ### Digital Twin Stub (`digital_twin.rs`)
 
@@ -57,6 +57,7 @@ The network maintains a real-time model of its own state via periodic snapshots:
 - `NetworkSnapshot` — captures all UE states (`UeSnapshot`) and per-slice load percentages.
 - `DigitalTwin::update()` — ingests a new snapshot and returns a `SnapshotDiff` (added/removed UEs, changed slice loads) against the previous state.
 - Change threshold: slice load changes < 1% are not reported (noise filter).
+- `DigitalTwinValidation` — `Validate` impl that verifies first-snapshot detection, sub-threshold noise filtering, removed-UE detection, and slice-load change detection.
 
 ### NTN Handover (`crates/6g-ntn/src/handover.rs`)
 

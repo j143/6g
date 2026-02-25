@@ -42,6 +42,19 @@ A LEO satellite moves out of view every ~10 minutes. The NTN handover procedure 
 
 Target (Phase 4): handover latency < 50 ms for a 500 km LEO orbit.
 
+## Phase 4 — LEO→Terrestrial Handover Manager (`handover.rs`)
+
+Key types:
+
+| Type | Role |
+|---|---|
+| `HandoverTrigger` | Enum of trigger conditions: `BetterTerrestrialRsrp { delta_db: PowerDb }`, `PropagationDelayExceeded { delay_ms }`, `LowElevationAngle { elevation_deg }` |
+| `HandoverDecision` | Outcome: `Proceed` (trigger met) or `Maintain` (stay on NTN) |
+| `NtnHandoverManager` | Evaluates a slice of `HandoverTrigger`s for a UE and returns a `HandoverDecision`. Default thresholds: hysteresis = 3 dB (`PowerDb`), max delay = 5 ms, min elevation = 10° |
+| `NtnHandoverValidation` | `Validate` impl — checks that `leo_propagation_delay_ms(550 km)` ≈ 1.83 ms and that the proceed/maintain logic is correct |
+
+Free function `leo_propagation_delay_ms(altitude: Distance) -> f64` computes one-way delay in ms from the satellite altitude.
+
 ## What This Crate Does NOT Do
 
 - Does not implement waveform or channel models — import from `6g-phy`.
