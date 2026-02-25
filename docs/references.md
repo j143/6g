@@ -50,3 +50,20 @@ Pinned reference documents for the 6G experiment bed.
 - **Qin, Z. et al.** — *Semantic Communications: Principles and Challenges* (IEEE JSAC, 2022). Theoretical foundation for `6g-semantic` encoder/decoder design.
 
 - **Xie, H. et al.** — *Deep Learning Enabled Semantic Communication Systems* (IEEE Trans. Signal Process., 2021). DNN-based autoencoder approach implemented as the `SemanticCodec` trait.
+
+## Open-Source Simulators and Public Datasets (Comparison Targets)
+
+These are the primary external systems used to validate this testbed
+(see `docs/comparison-strategy.md` for the full methodology).
+
+- **srsRAN Project** — Open-source 5G NR gNB/UE in C++. Produces PDSCH BLER vs SNR JSON logs, MAC throughput traces, and HARQ retransmission stats.  URL: https://www.srsran.com
+
+- **OpenAirInterface5G (OAI)** — Open-source 5G SA stack from EURECOM. Provides SINR traces, MAC scheduler throughput, and HARQ BLER.  URL: https://openairinterface.org
+
+- **ns-3 5G-LENA NR module** — ns-3-based 5G NR system-level simulator from CTTC. Useful for end-to-end latency, Jain fairness index, and coverage metrics.  URL: https://5g-lena.cttc.es
+
+- **Vienna 5G Link Level Simulator** — MATLAB-based PHY link-level simulator from TU Wien. Canonical BER/BLER vs Eb/N0 curves for OFDM and OTFS.  URL: https://www.nt.tuwien.ac.at/research/mobile-communications/vienna-5g-simulators/
+
+- **NIST 5G mmWave Channel Model** — Publicly released path-loss tables at 28 GHz and 73 GHz for UMa/UMi scenarios; used to validate `6g-phy/spectrum.rs`.  URL: https://www.nist.gov/programs-projects/5g-channel-model
+
+- **DeepMIMO** — Raytracing-based MIMO channel dataset. Provides CSI matrices and beamforming gain benchmarks for massive MIMO validation.  URL: https://deepmimo.net

@@ -196,7 +196,32 @@ Example applied to RIS (`6g-phy/ris.rs`):
 
 ***
 
-## 8. Project Hygiene — Non-Negotiable
+## 9. Comparing Against Real Systems
+
+The experiment bed is only trustworthy when its outputs can be verified
+against systems that are already built.  The comparison methodology —
+which simulators to run, which public datasets to download, and how to
+import external results into the `ValidationCheck` framework — is
+documented in **`docs/comparison-strategy.md`**.
+
+The code-level hook is `sixg_common::baseline::BaselineDataset`:
+
+```rust
+let dataset = BaselineDataset::from_csv_str(csv_str, source)?;
+let result = dataset.compare(|snr_db| simulate_ber(snr_db), 5.0);
+assert!(result.passed(), "{}", result.summary());
+```
+
+Key real-system targets, in priority order:
+
+| Phase | Real system | Metric to match |
+|-------|-------------|-----------------|
+| PHY | NIST 28 GHz path-loss tables | Path loss (dB) vs distance |
+| PHY | Vienna 5G LLS | BER vs Eb/N0 for OTFS |
+| MAC | ns-3 NR (5G-LENA) | Jain fairness index at 20 UEs |
+| MAC | OAI 5G SA traces | HARQ BLER vs SNR |
+| ISAC | Liu et al. Table II (IEEE JSAC 2018) | CRB vs sensing power ratio |
+| System | srsRAN 5G SA | End-to-end throughput / latency |
 
 Given this is a solo research project that you might publish or use for PhD work:
 
