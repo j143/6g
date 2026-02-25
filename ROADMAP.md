@@ -109,10 +109,10 @@ Sub-tasks:
 **Goal: Functional data plane from application to PHY**
 
 Your 5G experience is most transferable here. Key 6G differences:
-- [ ] **AI-native scheduler** in MAC: implement a simple Q-learning or bandit-based scheduler alongside a classic Round Robin — compare. This is the experiment
-- [ ] **HARQ evolution**: 6G proposes proactive HARQ (predictive retransmission). Implement classic Chase Combining first, then model a prediction oracle
-- [ ] **PDCP**: Fill in the `process_tx`/`process_rx` TODOs — implement actual ROHC simulation (even simplified), proper sequence numbering, and replay detection
-- [ ] **RLC**: AM/UM/TM modes — directly map your 5G RLC knowledge
+- [x] **AI-native scheduler** in MAC: implement a simple Q-learning or bandit-based scheduler alongside a classic Round Robin — compare. This is the experiment
+- [x] **HARQ evolution**: 6G proposes proactive HARQ (predictive retransmission). Implement classic Chase Combining first, then model a prediction oracle
+- [x] **PDCP**: Fill in the `process_tx`/`process_rx` TODOs — implement actual ROHC simulation (even simplified), proper sequence numbering, and replay detection
+- [x] **RLC**: AM/UM/TM modes — directly map your 5G RLC knowledge
 
 ### Phase 4 — Core Network (Weeks 27-36)
 **Goal: Minimal 6G control plane that differs meaningfully from 5GC**
