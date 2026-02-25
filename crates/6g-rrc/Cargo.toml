@@ -6,5 +6,6 @@ license.workspace = true
 
 [dependencies]
 sixg-common = { path = "../6g-common" }
+sixg-pdcp   = { path = "../6g-pdcp" }
 thiserror.workspace = true
 serde.workspace = true
