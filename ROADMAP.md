@@ -77,10 +77,10 @@ In 5G, NAS and RRC are enormous — registration, authentication, session manage
 **Goal: Stable, buildable workspace + spec reading discipline**
 
 Tasks:
-- [ ] Add CI (GitHub Actions): `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt --check`
-- [ ] Create a `docs/` folder: for each crate, write a 1-page design doc *before* implementation (spec → design → code order)
-- [ ] Pin your reference papers in `docs/references.md`: ITU-R M.2160, Samsung 6G Vision (2020), Nokia Bell Labs 6G (2021), Qualcomm Foundry series, key IEEE papers on ISAC and RIS
-- [ ] Rework `6g-common/types.rs`: define your fundamental types precisely — `Frequency` (with THz range), `Position3D`, `BearerId`, `SliceId`, `Payload` — these are your API contracts
+- [x] Add CI (GitHub Actions): `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt --check`
+- [x] Create a `docs/` folder: for each crate, write a 1-page design doc *before* implementation (spec → design → code order)
+- [x] Pin your reference papers in `docs/references.md`: ITU-R M.2160, Samsung 6G Vision (2020), Nokia Bell Labs 6G (2021), Qualcomm Foundry series, key IEEE papers on ISAC and RIS
+- [x] Rework `6g-common/types.rs`: define your fundamental types precisely — `Frequency` (with THz range), `Position3D`, `BearerId`, `SliceId`, `Payload` — these are your API contracts
 
 ### Phase 1 — PHY Layer Experiment (Weeks 5-12)
 **Goal: Simulate one end-to-end waveform through the physical layer**
@@ -88,11 +88,11 @@ Tasks:
 This is your experiment bed's core value. 6G PHY is where the biggest unknowns are.
 
 Sub-tasks:
-- [ ] **Waveform module** (`6g-phy/waveform.rs`): Implement OFDM baseline, then OTFS (Orthogonal Time Frequency Space) — the 6G candidate waveform for high-mobility scenarios. Compare delay-Doppler domain vs time-frequency (5G NR is OFDM)
-- [ ] **Spectrum module** (`6g-phy/spectrum.rs`): Model sub-THz band (100-300 GHz). Key parameter: oxygen absorption at 60 GHz, rain fade. You don't need actual RF — model path loss as `PL(d) = FSPL + α·d` with THz-specific α
-- [ ] **MIMO module** (`6g-phy/mimo.rs`): Implement massive MIMO channel model (3GPP-style CDL or QuaDRiGa), then extend to Extremely Large Aperture Array (ELAA) — the 6G MIMO paradigm. Near-field effects become relevant at THz
-- [ ] **RIS module** (`6g-phy/ris.rs`): Reconfigurable Intelligent Surface — model as a phase-shift matrix applied to the channel. Even a simplified `H_eff = H_d + H_r * Φ * H_i` model is valuable
-- [ ] **Validation**: Write unit tests that verify SNR vs distance curves match published results for THz channels
+- [x] **Waveform module** (`6g-phy/waveform.rs`): Implement OFDM baseline, then OTFS (Orthogonal Time Frequency Space) — the 6G candidate waveform for high-mobility scenarios. Compare delay-Doppler domain vs time-frequency (5G NR is OFDM)
+- [x] **Spectrum module** (`6g-phy/spectrum.rs`): Model sub-THz band (100-300 GHz). Key parameter: oxygen absorption at 60 GHz, rain fade. You don't need actual RF — model path loss as `PL(d) = FSPL + α·d` with THz-specific α
+- [x] **MIMO module** (`6g-phy/mimo.rs`): Implement massive MIMO channel model (3GPP-style CDL or QuaDRiGa), then extend to Extremely Large Aperture Array (ELAA) — the 6G MIMO paradigm. Near-field effects become relevant at THz
+- [x] **RIS module** (`6g-phy/ris.rs`): Reconfigurable Intelligent Surface — model as a phase-shift matrix applied to the channel. Even a simplified `H_eff = H_d + H_r * Φ * H_i` model is valuable
+- [x] **Validation**: Write unit tests that verify SNR vs distance curves match published results for THz channels
 
 ### Phase 2 — ISAC Integration (Weeks 13-18)
 **Goal: One waveform, dual function — sense and communicate**
@@ -100,10 +100,10 @@ Sub-tasks:
 ISAC is one of the clearest 6G differentiators from 5G. Your existing radar/sensing intuition from analog design applies here.
 
 Sub-tasks:
-- [ ] Define the ISAC waveform tradeoff: CRB (Cramér-Rao Bound) for sensing vs capacity for communication — implement as a Pareto frontier computation
-- [ ] Implement DFRC (Dual Function Radar Communications) basic model: OFDM with embedded sensing sequences
-- [ ] Target detection stub: FFT-based range-Doppler processing on the reflected signal
-- [ ] Validate against: SINR for communication link, detection probability (Pd) vs false alarm (Pfa) for sensing
+- [x] Define the ISAC waveform tradeoff: CRB (Cramér-Rao Bound) for sensing vs capacity for communication — implement as a Pareto frontier computation
+- [x] Implement DFRC (Dual Function Radar Communications) basic model: OFDM with embedded sensing sequences
+- [x] Target detection stub: FFT-based range-Doppler processing on the reflected signal
+- [x] Validate against: SINR for communication link, detection probability (Pd) vs false alarm (Pfa) for sensing
 
 ### Phase 3 — MAC/RLC/PDCP Layer (Weeks 19-26)
 **Goal: Functional data plane from application to PHY**
