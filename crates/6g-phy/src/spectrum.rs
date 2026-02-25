@@ -150,12 +150,7 @@ impl SpectrumManager {
     ///
     /// Noise floor = `10·log10(k·T·B)` where B is the total aggregated
     /// bandwidth.
-    pub fn received_snr_db(
-        &self,
-        tx_power_dbm: f64,
-        distance_m: f64,
-        noise_figure_db: f64,
-    ) -> f64 {
+    pub fn received_snr_db(&self, tx_power_dbm: f64, distance_m: f64, noise_figure_db: f64) -> f64 {
         // Thermal noise power in dBm: N0 = -174 dBm/Hz + 10·log10(B_Hz)
         let bandwidth_hz = (self.total_bandwidth_mhz() as f64) * 1e6;
         let noise_floor_dbm = -174.0 + 10.0 * bandwidth_hz.log10();
