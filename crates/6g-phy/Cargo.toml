@@ -10,4 +10,9 @@ sixg-ai     = { path = "../6g-ai" }
 thiserror.workspace = true
 serde.workspace = true
 
+[features]
+## Gate Level-2 baseline comparison tests (require inline reference data).
+## Run with: cargo test -p sixg-phy --features=baseline-comparison
+baseline-comparison = []
+
 [dev-dependencies]

@@ -260,3 +260,58 @@ mod tests {
         );
     }
 }
+
+/// Level-2 baseline comparison tests for the spectrum / path-loss module.
+///
+/// These tests compare the simulated path-loss curve against inline reference
+/// data derived from the **NIST 5G mmWave channel model** at 28 GHz (Urban
+/// Macro, Line-of-Sight, close-in reference distance = 1 m):
+///
+/// `PL(d) = 61.4 + 20·log₁₀(d)  [dB]`
+///
+/// Source: Rappaport et al., "Millimeter Wave Mobile Communications for 5G
+/// Cellular", IEEE Access 2013; NIST Technical Note 2069 (2020).
+///
+/// Gate: `cargo test -p sixg-phy --features=baseline-comparison`
+#[cfg(all(test, feature = "baseline-comparison"))]
+mod baseline_tests {
+    use sixg_common::baseline::{BaselineDataset, BaselineSource};
+
+    use super::*;
+
+    /// NIST 28 GHz UMa LOS close-in path-loss reference data.
+    ///
+    /// `input_parameter` = distance in metres, `reference_value` = path loss in dB.
+    /// Formula: `PL(d) = 61.4 + 20·log₁₀(d)`.
+    const NIST_28GHZ_PATHLOSS_CSV: &str = "\
+input_parameter,reference_value
+10.0,81.40
+30.0,90.94
+100.0,101.40
+300.0,110.94
+1000.0,121.40
+";
+
+    #[test]
+    fn path_loss_28ghz_matches_nist_close_in_model() {
+        let dataset = BaselineDataset::from_csv_str(
+            NIST_28GHZ_PATHLOSS_CSV,
+            BaselineSource {
+                system: "NIST 28 GHz mmWave",
+                metric: "path_loss_db",
+                citation: "https://www.nist.gov/programs-projects/5g-channel-model",
+            },
+        )
+        .expect("inline CSV must parse");
+
+        // Simulate path loss at 28 GHz using the PHY spectrum module.
+        // At 28 GHz molecular absorption is negligible (< 0.01 dB at 1000 m),
+        // so the result is effectively pure FSPL — which exactly matches the
+        // NIST close-in model PL = 61.4 + 20·log₁₀(d).
+        let result = dataset.compare(
+            |dist_m| path_loss_db(Distance::from_m(dist_m), Frequency::from_hz(28e9)).as_db(),
+            1.0, // ≤ 1 % tolerance on dB values
+        );
+        assert!(result.passed(), "{}", result.summary());
+    }
+}

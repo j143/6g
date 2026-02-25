@@ -10,6 +10,7 @@
 pub mod mimo;
 pub mod ris;
 pub mod spectrum;
+pub mod validation;
 pub mod waveform;
 
 use sixg_common::config::SystemConfig;
@@ -17,6 +18,7 @@ use sixg_common::config::SystemConfig;
 pub use mimo::MimoConfig;
 pub use ris::{RisChannel, RisConfig};
 pub use spectrum::{path_loss_db, SpectrumManager};
+pub use validation::PhyValidation;
 pub use waveform::{bpsk_ber_awgn, ofdm_ber_high_doppler, Waveform};
 
 /// Entry point for the 6G physical layer.

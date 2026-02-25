@@ -68,10 +68,20 @@ jobs:
       - name: Check primitive leakage at public API boundaries
         run: python3 scripts/check_primitive_leakage.py
 
+  baseline-comparison:
+    name: Level-2 Baseline Comparison (PHY)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run PHY Level-2 baseline comparison tests
+        run: cargo test -p sixg-phy --features=baseline-comparison
+
   final-check:
     name: Final Check (format + doc-sync)
     runs-on: ubuntu-latest
-    needs: [test, clippy, fmt, doc-sync, dep-graph]
+    needs: [test, clippy, fmt, doc-sync, dep-graph, baseline-comparison]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
