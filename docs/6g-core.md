@@ -30,21 +30,44 @@ The 6G Core Network handles control-plane signalling for registration, session m
 - Does not implement the UE side of NAS — this is the network-side only.
 - Does not depend on `6g-phy`, `6g-mac`, `6g-rlc`, `6g-pdcp`, or `6g-rrc`.
 
-## 6G Architectural Direction (Phase 4 Target)
+## 6G Architectural Direction (Phase 4 — Implemented)
 
 Per Qualcomm's *Rethinking the Control Plane* paper:
 
 > 6G proposes a **user-plane-first** architecture where service access is driven by the data path, with the control plane as a thin adaptation layer. This collapses the multi-message NAS registration procedure into a streamlined data-path setup.
 
-Phase 4 will rearchitect `6g-core` toward a **Service-Based Architecture v2**:
+### Service-Based Architecture v2 (`sba_v2.rs`)
 
-- Flatter hierarchy: remove AMF ↔ AUSF ↔ UDM chaining for authentication.
-- In-line authentication: UE presents a token in the first data-path PDU.
-- Digital twin stub: the core maintains a real-time snapshot of UE state for predictive mobility and slice selection.
+Research hypothesis: replace the 5G NAS multi-message exchange (≥ 4 round trips: Registration Request → Authentication → Security Mode Command → Registration Accept) with a **single inline token exchange** embedded in the first data-path PDU.
+
+| Step | 5G NAS | SBAv2 |
+|---|---|---|
+| UE→AMF | Registration Request | First data PDU + `ServiceToken` |
+| AMF→AUSF | Authentication Request | (eliminated) |
+| AUSF→UDM | Auth Vector fetch | (eliminated) |
+| AMF→UE | Security Mode Command | (eliminated) |
+| AMF→UE | Registration Accept | Inline service grant |
+| **Round trips** | **≥ 4** | **1** |
+
+Key types: `ServiceToken` (16-byte pre-provisioned credential), `SbaV2Registry` (flat registry, no AUSF/UDM chain), `SbaRegistration` (record per UE).
+
+### Digital Twin Stub (`digital_twin.rs`)
+
+The network maintains a real-time model of its own state via periodic snapshots:
+- `NetworkSnapshot` — captures all UE states (`UeSnapshot`) and per-slice load percentages.
+- `DigitalTwin::update()` — ingests a new snapshot and returns a `SnapshotDiff` (added/removed UEs, changed slice loads) against the previous state.
+- Change threshold: slice load changes < 1% are not reported (noise filter).
+
+### NTN Handover (`crates/6g-ntn/src/handover.rs`)
+
+LEO → terrestrial handover manager. Trigger conditions:
+- Better terrestrial RSRP by ≥ 3 dB hysteresis.
+- LEO one-way propagation delay > 5 ms (nominal LEO at 550 km ≈ 1.83 ms).
+- Satellite elevation angle < 10°.
 
 ## Current Scope
 
-The existing NF stubs are kept as-is to provide a working baseline. They will be reworked in Phase 4 after the PHY and MAC experiments are complete.
+The 5GC-derived NF stubs (AMF, SMF, UPF, PCF, NSSF) are retained as the 5G baseline reference. The Phase 4 SBAv2 registry (`SbaV2Registry`) and `DigitalTwin` operate alongside them in `CoreNetwork`.
 
 ## References
 

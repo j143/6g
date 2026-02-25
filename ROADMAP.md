@@ -117,10 +117,10 @@ Your 5G experience is most transferable here. Key 6G differences:
 ### Phase 4 — Core Network (Weeks 27-36)
 **Goal: Minimal 6G control plane that differs meaningfully from 5GC**
 
-- [ ] Re-architect `6g-core` away from direct 5G NF mapping. Design a **Service-Based Architecture v2** with flatter hierarchy
-- [ ] Implement a registration flow that is *simpler* than 5G Registration (no AMF reselection complexity, no full NAS Security Mode Command chain) — this is the research hypothesis
-- [ ] Digital Twin integration stub: the network maintains a real-time model of its own state — implement as a simple state-snapshot + diff mechanism
-- [ ] NTN handover procedure: LEO satellite → terrestrial handover, accounting for the ~1.8ms propagation delay already modeled in the skeleton
+- [x] Re-architect `6g-core` away from direct 5G NF mapping. Design a **Service-Based Architecture v2** with flatter hierarchy
+- [x] Implement a registration flow that is *simpler* than 5G Registration (no AMF reselection complexity, no full NAS Security Mode Command chain) — this is the research hypothesis
+- [x] Digital Twin integration stub: the network maintains a real-time model of its own state — implement as a simple state-snapshot + diff mechanism
+- [x] NTN handover procedure: LEO satellite → terrestrial handover, accounting for the ~1.8ms propagation delay already modeled in the skeleton
 
 ### Phase 5 — Semantic & AI Layers (Weeks 37-48)
 **Goal: Demonstrate semantic communication on one end-to-end flow**
