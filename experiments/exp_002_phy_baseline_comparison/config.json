@@ -1,0 +1,25 @@
+{
+    "experiment": "exp_002_phy_baseline_comparison",
+    "description": "Phase 1 PHY baseline comparison: OFDM/OTFS BER vs Eb/N0 and path loss vs distance",
+    "waveform": {
+        "ofdm_subcarrier_spacing_khz": 30,
+        "ofdm_fft_size": 4096,
+        "otfs_delay_bins": 64,
+        "otfs_doppler_bins": 16
+    },
+    "channel": {
+        "carrier_freq_hz": 28e9,
+        "vehicle_speed_kmh": 250,
+        "normalized_doppler": 0.216
+    },
+    "snr_range_db": [-2, 0, 2, 4, 6, 8, 10, 12],
+    "distance_range_m": [10, 30, 100, 300, 1000],
+    "tolerances": {
+        "level_1_pct": 1.0,
+        "level_2_pct": 5.0
+    },
+    "references": {
+        "ber": "Vienna 5G LLS — https://www.nt.tuwien.ac.at",
+        "path_loss": "NIST 28 GHz mmWave — https://www.nist.gov/programs-projects/5g-channel-model"
+    }
+}

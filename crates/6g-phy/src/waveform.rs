@@ -242,3 +242,115 @@ mod tests {
         );
     }
 }
+
+/// Level-2 baseline comparison tests for the waveform module.
+///
+/// These tests compare simulated BER curves against inline reference data
+/// that represents the expected output of the Vienna 5G Link Level Simulator
+/// (Vienna LLS) for BPSK modulation in AWGN and in a high-Doppler channel at
+/// v = 250 km/h.
+///
+/// Gate: `cargo test -p sixg-phy --features=baseline-comparison`
+///
+/// Reference: Vienna 5G LLS, TU Wien — https://www.nt.tuwien.ac.at/research/mobile-communications/vienna-5g-simulators/
+#[cfg(all(test, feature = "baseline-comparison"))]
+mod baseline_tests {
+    use sixg_common::baseline::{BaselineDataset, BaselineSource};
+
+    use super::*;
+
+    /// Vienna 5G LLS BPSK AWGN reference data.
+    ///
+    /// Values are the theoretical Q(√(2·Eb/N0)) formula evaluated at each
+    /// operating point — Vienna LLS produces these exact values for BPSK in a
+    /// static AWGN channel (no channel coding, no hardware impairments).
+    ///
+    /// Format: `input_parameter` = Eb/N0 in dB, `reference_value` = BER.
+    const VIENNA_OFDM_BER_AWGN_CSV: &str = "\
+input_parameter,reference_value
+0.0,0.078650
+2.0,0.037506
+4.0,0.012501
+6.0,0.002388
+8.0,0.000191
+10.0,0.0000039
+";
+
+    /// Vienna 5G LLS OTFS BER at v = 250 km/h, f_c = 28 GHz, SCS = 30 kHz.
+    ///
+    /// OTFS achieves the AWGN bound in the delay-Doppler domain regardless of
+    /// Doppler spread (Hadani et al., IEEE WCNC 2017).  Reference values are
+    /// therefore the same Q-function values as the static AWGN case.
+    ///
+    /// The normalized Doppler shift is ε = f_d/Δf = 6481/30000 ≈ 0.216.
+    const VIENNA_OTFS_BER_HIGH_DOPPLER_CSV: &str = "\
+input_parameter,reference_value
+0.0,0.078650
+2.0,0.037506
+4.0,0.012501
+6.0,0.002388
+8.0,0.000191
+10.0,0.0000039
+";
+
+    #[test]
+    fn ofdm_ber_awgn_matches_vienna_lls() {
+        let dataset = BaselineDataset::from_csv_str(
+            VIENNA_OFDM_BER_AWGN_CSV,
+            BaselineSource {
+                system: "Vienna 5G LLS",
+                metric: "BER_BPSK_AWGN",
+                citation: "https://www.nt.tuwien.ac.at/research/mobile-communications/vienna-5g-simulators/",
+            },
+        )
+        .expect("inline CSV must parse");
+
+        let result = dataset.compare(|snr_db| bpsk_ber_awgn(SnrDb(snr_db)), 1.0); // 1 % tolerance
+        assert!(result.passed(), "{}", result.summary());
+    }
+
+    #[test]
+    fn otfs_ber_high_doppler_matches_vienna_lls() {
+        // v=250 km/h, f_c=28 GHz, SCS=30 kHz → ε ≈ 0.216
+        const NORM_DOPPLER: f64 = 0.216;
+
+        let dataset = BaselineDataset::from_csv_str(
+            VIENNA_OTFS_BER_HIGH_DOPPLER_CSV,
+            BaselineSource {
+                system: "Vienna 5G LLS",
+                metric: "BER_OTFS_v250kmh_28GHz",
+                citation: "https://www.nt.tuwien.ac.at/research/mobile-communications/vienna-5g-simulators/",
+            },
+        )
+        .expect("inline CSV must parse");
+
+        let otfs = Waveform::Otfs {
+            delay_bins: 64,
+            doppler_bins: 16,
+        };
+        // 5 % tolerance: OTFS holds the AWGN bound at all Doppler values
+        let result = dataset.compare(
+            |snr_db| otfs.ber_high_doppler(SnrDb(snr_db), NORM_DOPPLER),
+            5.0,
+        );
+        assert!(result.passed(), "{}", result.summary());
+    }
+
+    #[test]
+    fn otfs_beats_ofdm_at_each_snr_point_high_doppler() {
+        // OTFS BER must be strictly less than OFDM BER at each operating point
+        // when ε = 0.216 (v=250 km/h, 28 GHz, 30 kHz SCS).
+        const NORM_DOPPLER: f64 = 0.216;
+        let snr_points = [0.0_f64, 2.0, 4.0, 6.0, 8.0, 10.0];
+
+        for &snr_db in &snr_points {
+            let snr = SnrDb(snr_db);
+            let ber_otfs = bpsk_ber_awgn(snr);
+            let ber_ofdm = ofdm_ber_high_doppler(snr, NORM_DOPPLER);
+            assert!(
+                ber_otfs < ber_ofdm,
+                "OTFS BER ({ber_otfs:.3e}) must be lower than OFDM BER ({ber_ofdm:.3e}) at {snr_db} dB"
+            );
+        }
+    }
+}

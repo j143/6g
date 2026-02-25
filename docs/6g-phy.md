@@ -56,6 +56,23 @@ Passive/semi-passive surfaces that apply a diagonal phase-shift matrix Φ to the
 - OTFS vs OFDM BER curves at the same Eb/N0 in a high-Doppler channel.
 - RIS gain: received SNR with optimised Φ vs no RIS in a shadowed 150 GHz scenario. Success criterion: > 10 dB gain.
 
+### `PhyValidation` — Level 1 + Level 2 checks
+
+`PhyValidation` implements the `Validate` trait (Level 1, analytical bounds within 1 %):
+
+- BPSK BER at 0 dB Eb/N0 ≈ 0.0786 (Q(√2), Proakis & Salehi 5th ed.)
+- BPSK BER at 10 dB Eb/N0 ≈ 3.87×10⁻⁶ (Q(√20))
+- FSPL at 28 GHz, 100 m ≈ 101.39 dB (matches NIST close-in model to < 0.01 %)
+- OTFS BER / OFDM BER ratio ≈ 4× at SNR=10 dB, ε=0.216 (Hadani et al. WCNC 2017)
+
+Level 2 baseline comparison tests (gate: `--features=baseline-comparison`) compare
+against inline reference data representing:
+
+- **Vienna 5G LLS**: BPSK BER in AWGN and OTFS BER at v=250 km/h, 28 GHz
+- **NIST 28 GHz mmWave dataset**: path loss vs distance (UMa LOS, close-in model)
+
+See `experiments/exp_002_phy_baseline_comparison/` for the runnable experiment.
+
 ## References
 
 - Hadani et al., *OTFS Modulation*, IEEE WCNC 2017
