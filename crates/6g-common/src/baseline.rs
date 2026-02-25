@@ -122,10 +122,7 @@ impl BaselineDataset {
     /// ```
     ///
     /// Returns an error string if the CSV is malformed.
-    pub fn from_csv_str(
-        csv: &str,
-        source: BaselineSource,
-    ) -> Result<Self, String> {
+    pub fn from_csv_str(csv: &str, source: BaselineSource) -> Result<Self, String> {
         let mut points = Vec::new();
         let mut lines = csv.lines();
         // Skip header row.
@@ -143,13 +140,18 @@ impl BaselineDataset {
                     line
                 ));
             }
-            let x: f64 = parts[0].trim().parse().map_err(|e| {
-                format!("Line {}: cannot parse input_parameter: {e}", line_no + 2)
-            })?;
-            let y: f64 = parts[1].trim().parse().map_err(|e| {
-                format!("Line {}: cannot parse reference_value: {e}", line_no + 2)
-            })?;
-            points.push(BaselinePoint { input_parameter: x, reference_value: y });
+            let x: f64 = parts[0]
+                .trim()
+                .parse()
+                .map_err(|e| format!("Line {}: cannot parse input_parameter: {e}", line_no + 2))?;
+            let y: f64 = parts[1]
+                .trim()
+                .parse()
+                .map_err(|e| format!("Line {}: cannot parse reference_value: {e}", line_no + 2))?;
+            points.push(BaselinePoint {
+                input_parameter: x,
+                reference_value: y,
+            });
         }
         Ok(Self { source, points })
     }
@@ -271,7 +273,11 @@ impl BaselineComparison {
                     )
                 })
                 .collect();
-            format!("{header}\n  {}/{total} points OUTSIDE tolerance:\n{}", failed.len(), lines.join("\n"))
+            format!(
+                "{header}\n  {}/{total} points OUTSIDE tolerance:\n{}",
+                failed.len(),
+                lines.join("\n")
+            )
         }
     }
 
@@ -281,7 +287,10 @@ impl BaselineComparison {
         // Use a concatenated module name as the static str.
         let module: &'static str =
             Box::leak(format!("baseline/{}/{}", self.system, self.metric).into_boxed_str());
-        ValidationResult { module, checks: self.checks }
+        ValidationResult {
+            module,
+            checks: self.checks,
+        }
     }
 }
 
@@ -301,9 +310,18 @@ mod tests {
                 citation: "https://www.nt.tuwien.ac.at",
             },
             points: vec![
-                BaselinePoint { input_parameter: 0.0, reference_value: 0.5 },
-                BaselinePoint { input_parameter: 10.0, reference_value: 0.1 },
-                BaselinePoint { input_parameter: 20.0, reference_value: 0.01 },
+                BaselinePoint {
+                    input_parameter: 0.0,
+                    reference_value: 0.5,
+                },
+                BaselinePoint {
+                    input_parameter: 10.0,
+                    reference_value: 0.1,
+                },
+                BaselinePoint {
+                    input_parameter: 20.0,
+                    reference_value: 0.01,
+                },
             ],
         }
     }
@@ -337,14 +355,17 @@ mod tests {
     #[test]
     fn compare_fn_matches_compare_values() {
         let ds = ber_dataset();
-        let result_fn = ds.compare(|x| {
-            // exact sim
-            match x as i32 {
-                0 => 0.5,
-                10 => 0.1,
-                _ => 0.01,
-            }
-        }, 1.0);
+        let result_fn = ds.compare(
+            |x| {
+                // exact sim
+                match x as i32 {
+                    0 => 0.5,
+                    10 => 0.1,
+                    _ => 0.01,
+                }
+            },
+            1.0,
+        );
         assert!(result_fn.passed(), "{}", result_fn.summary());
     }
 
@@ -383,7 +404,11 @@ mod tests {
     #[test]
     fn from_csv_str_rejects_malformed_line() {
         let csv = "input_parameter,reference_value\nno_comma_here\n";
-        let source = BaselineSource { system: "t", metric: "m", citation: "c" };
+        let source = BaselineSource {
+            system: "t",
+            metric: "m",
+            citation: "c",
+        };
         assert!(BaselineDataset::from_csv_str(csv, source).is_err());
     }
 

@@ -19,6 +19,7 @@ PDCP handles header compression, ciphering, and integrity protection of user-pla
 - `PdcpConfig` — ciphering algorithm, integrity algorithm, SN length
 - `PdcpEntity` — per-bearer PDCP state machine
 - `PdcpLayer` — crate entry point managing all active entities
+- `RohcContext` — per-flow ROHC U-mode state: tracks whether the IR (full header) or CO (compressed) packet format should be emitted. First packet on each flow sends IR (`0xFF` marker); subsequent packets send CO (SN prefix only).
 
 ## Functions
 

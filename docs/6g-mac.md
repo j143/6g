@@ -17,19 +17,27 @@ The MAC layer is responsible for scheduling radio resources among UEs, managing 
 
 ### `scheduler.rs` — Resource Scheduler
 
-Key types: `ResourceAssignment`, `SchedulingPolicy`.
+Key types: `ResourceAssignment`, `SchedulingPolicy`, `UeChannelState`, `QBandit`, `SchedulerValidation`.
 Assigns physical resource blocks (PRBs) to UEs each TTI.
 
 - **RoundRobin**: baseline, equal allocation regardless of channel quality.
 - **ProportionalFair**: balances throughput and fairness using the PF metric `r_k / R̄_k`.
-- **AiNative**: policy inferred from a learned model (placeholder → Phase 3).
+- **AiNative**: ε-greedy Q-learning bandit (`QBandit`) with TD(0) updates — picks the UE with highest estimated value, explores with probability ε.
+
+`UeChannelState { ue: UeId, snr: SnrLinear, avg_throughput_bps: f64 }` — per-UE input to `schedule_with_csi`.
+
+`SchedulerValidation` implements the `Validate` trait: verifies that `jain_fairness` returns 1.0 for equal allocations and that PF outperforms RR for heterogeneous channels.
 
 Experiment: compare Jain fairness index and aggregate throughput between RoundRobin and AiNative at 50 UEs.
 
 ### `harq.rs` — Hybrid ARQ
 
-Key types: `HarqState`, `HarqManager`.
-32 HARQ processes per UE, aligned with 6G's proposed higher-order HARQ round-trips at THz. State machine: `Idle → WaitingAck → Retransmitting → Idle`. 6G extension: **proactive HARQ** (predict retransmission before NACK; implement as Phase 3 experiment).
+Key types: `HarqState`, `HarqManager`, `ChaseCombineBuffer`, `ProactiveHarq`.
+32 HARQ processes per UE, aligned with 6G's proposed higher-order HARQ round-trips at THz. State machine: `Idle → WaitingAck → Retransmitting → Idle`.
+
+`ChaseCombineBuffer` — MRC soft-buffer accumulator; `chase_combine(snr)` returns `true` when the combined SNR clears the decode threshold (~3 dB rule-of-thumb).
+
+`ProactiveHarq` — 6G proactive retransmission oracle: `should_prestage(predicted_snr, confidence)` pre-stages a retransmission before a NACK arrives when confidence is high and the channel is predicted to be weak.
 
 ### `access.rs` — Multiple Access Schemes
 

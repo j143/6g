@@ -279,22 +279,26 @@ impl RlcEntity {
         // Sort by SN.
         self.rx_segments.sort_by_key(|(sn, _, _)| *sn);
         // Check for a single Full segment.
-        if let Some(pos) = self.rx_segments.iter().position(|(_, _, si)| *si == SegmentInfo::Full) {
+        if let Some(pos) = self
+            .rx_segments
+            .iter()
+            .position(|(_, _, si)| *si == SegmentInfo::Full)
+        {
             let (_, data, _) = self.rx_segments.remove(pos);
             return Some(data);
         }
         // Check for First + ... + Last chain.
-        if let Some(first_pos) =
-            self.rx_segments.iter().position(|(_, _, si)| *si == SegmentInfo::First)
+        if let Some(first_pos) = self
+            .rx_segments
+            .iter()
+            .position(|(_, _, si)| *si == SegmentInfo::First)
         {
             let start_sn = self.rx_segments[first_pos].0;
             // Collect consecutive SNs from start_sn until we find Last.
             let mut chain_sns: Vec<u16> = vec![start_sn];
             let mut cur_sn = start_sn.wrapping_add(1);
             loop {
-                if let Some(pos) =
-                    self.rx_segments.iter().position(|(sn, _, _)| *sn == cur_sn)
-                {
+                if let Some(pos) = self.rx_segments.iter().position(|(sn, _, _)| *sn == cur_sn) {
                     let si = self.rx_segments[pos].2;
                     chain_sns.push(cur_sn);
                     if si == SegmentInfo::Last {
@@ -308,7 +312,11 @@ impl RlcEntity {
             // Extract and reassemble.
             let mut sdu = Vec::new();
             for sn in &chain_sns {
-                let pos = self.rx_segments.iter().position(|(s, _, _)| s == sn).unwrap();
+                let pos = self
+                    .rx_segments
+                    .iter()
+                    .position(|(s, _, _)| s == sn)
+                    .unwrap();
                 let (_, data, _) = self.rx_segments.remove(pos);
                 sdu.extend_from_slice(&data);
             }
@@ -327,8 +335,7 @@ impl RlcEntity {
     /// Returns the list of PDUs that must be retransmitted (NACKed SNs).
     pub fn process_status(&mut self, status: &StatusPdu) -> Vec<Payload> {
         // ACK semantics: all SNs < ack_sn are ACKed UNLESS they appear in nack_sns.
-        let nack_set: std::collections::HashSet<u16> =
-            status.nack_sns.iter().copied().collect();
+        let nack_set: std::collections::HashSet<u16> = status.nack_sns.iter().copied().collect();
         self.retx_buffer
             .retain(|(sn, _)| *sn >= status.ack_sn || nack_set.contains(sn));
         // Return payloads for NACKed SNs (need retransmission).
@@ -348,7 +355,10 @@ impl RlcEntity {
     ///
     /// NACKs any SNs in `nack_sns` (caller provides the list of missing SNs).
     pub fn generate_status(&self, nack_sns: Vec<u16>) -> StatusPdu {
-        StatusPdu { ack_sn: self.rx_next, nack_sns }
+        StatusPdu {
+            ack_sn: self.rx_next,
+            nack_sns,
+        }
     }
 
     /// Return the current TX SN (for diagnostics / tests).
@@ -368,7 +378,9 @@ pub struct RlcLayer {
 
 impl RlcLayer {
     pub fn new() -> Self {
-        Self { entities: Vec::new() }
+        Self {
+            entities: Vec::new(),
+        }
     }
 
     /// Add a new RLC entity for the given bearer.
@@ -504,7 +516,10 @@ mod tests {
         let data = vec![0; MAX_PDU_PAYLOAD * 3 + 1]; // 4 segments (SN 0–3)
         let _ = e.transmit(data);
         // ACK SNs 0, 1, 2 (ack_sn=3 means everything up to SN<3 is ACKed).
-        let status = StatusPdu { ack_sn: 3, nack_sns: vec![] };
+        let status = StatusPdu {
+            ack_sn: 3,
+            nack_sns: vec![],
+        };
         let retx = e.process_status(&status);
         assert!(retx.is_empty(), "no NACKs → nothing to retransmit");
         // retx_buffer should now only contain SN=3.
@@ -517,14 +532,24 @@ mod tests {
         let mut e = RlcEntity::new(BearerId(1), RlcMode::Am);
         let data = vec![0xEE; MAX_PDU_PAYLOAD * 2 + 1]; // 3 segments (SN 0, 1, 2)
         let _ = e.transmit(data);
-        let status = StatusPdu { ack_sn: 3, nack_sns: vec![1] };
+        let status = StatusPdu {
+            ack_sn: 3,
+            nack_sns: vec![1],
+        };
         let retx = e.process_status(&status);
-        assert_eq!(retx.len(), 1, "one NACK should yield one retransmission PDU");
+        assert_eq!(
+            retx.len(),
+            1,
+            "one NACK should yield one retransmission PDU"
+        );
     }
 
     #[test]
     fn status_pdu_encode_decode() {
-        let s = StatusPdu { ack_sn: 42, nack_sns: vec![10, 20] };
+        let s = StatusPdu {
+            ack_sn: 42,
+            nack_sns: vec![10, 20],
+        };
         let bytes = s.encode();
         let decoded = StatusPdu::decode(&bytes).expect("should decode");
         assert_eq!(decoded.ack_sn, 42);

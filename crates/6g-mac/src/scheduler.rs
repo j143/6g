@@ -63,7 +63,11 @@ pub struct UeChannelState {
 impl UeChannelState {
     /// Create a new channel state with no throughput history.
     pub fn new(ue: UeId, snr: SnrLinear) -> Self {
-        Self { ue, snr, avg_throughput_bps: 1.0 }
+        Self {
+            ue,
+            snr,
+            avg_throughput_bps: 1.0,
+        }
     }
 }
 
@@ -168,7 +172,11 @@ impl QBandit {
     /// Return the current Q-value for a (UE index, SNR) pair.
     pub fn q_value(&self, ue_idx: usize, snr: SnrLinear) -> f64 {
         let bucket = self.snr_bucket(snr);
-        self.q_table.get(ue_idx).and_then(|row| row.get(bucket)).copied().unwrap_or(0.0)
+        self.q_table
+            .get(ue_idx)
+            .and_then(|row| row.get(bucket))
+            .copied()
+            .unwrap_or(0.0)
     }
 
     /// TD(0) update after observing `reward` for (UE index, SNR).
@@ -211,7 +219,12 @@ impl Scheduler {
             SchedulingPolicy::AiNative => Some(QBandit::new(64, 16, 0.1)),
             _ => None,
         };
-        Self { policy, rr_offset: 0, q_bandit, tti: 0 }
+        Self {
+            policy,
+            rr_offset: 0,
+            q_bandit,
+            tti: 0,
+        }
     }
 
     /// Return the active scheduling policy.
@@ -354,7 +367,11 @@ fn snr_to_mcs(snr: SnrLinear) -> u8 {
 /// Proportional Fair metric: `log₂(1 + SNR) / avg_throughput`.
 fn pf_metric(s: &UeChannelState) -> f64 {
     let r = (1.0 + s.snr.as_linear()).log2();
-    if s.avg_throughput_bps < 1.0 { r } else { r / s.avg_throughput_bps }
+    if s.avg_throughput_bps < 1.0 {
+        r
+    } else {
+        r / s.avg_throughput_bps
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -434,8 +451,16 @@ mod tests {
     fn pf_gives_more_rbs_to_better_channel() {
         let mut sched = Scheduler::with_policy(SchedulingPolicy::ProportionalFair);
         let states = vec![
-            UeChannelState { ue: UeId(1), snr: SnrLinear::new(1.0), avg_throughput_bps: 1.0 },
-            UeChannelState { ue: UeId(2), snr: SnrLinear::new(1000.0), avg_throughput_bps: 1.0 },
+            UeChannelState {
+                ue: UeId(1),
+                snr: SnrLinear::new(1.0),
+                avg_throughput_bps: 1.0,
+            },
+            UeChannelState {
+                ue: UeId(2),
+                snr: SnrLinear::new(1000.0),
+                avg_throughput_bps: 1.0,
+            },
         ];
         let assignments = sched.schedule_with_csi(&states, 10);
         // UE 2 has much better SNR → should appear first (slot 0) under PF.
@@ -483,7 +508,10 @@ mod tests {
         let q_before = sched.q_bandit.as_ref().unwrap().q_value(0, snr);
         sched.observe_reward(0, snr, 5e9);
         let q_after = sched.q_bandit.as_ref().unwrap().q_value(0, snr);
-        assert!(q_after > q_before, "Q-value should increase after positive reward");
+        assert!(
+            q_after > q_before,
+            "Q-value should increase after positive reward"
+        );
     }
 
     #[test]

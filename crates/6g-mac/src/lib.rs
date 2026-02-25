@@ -12,7 +12,9 @@ pub mod scheduler;
 
 pub use access::AccessScheme;
 pub use harq::{HarqManager, HarqState, ProactiveHarq};
-pub use scheduler::{jain_fairness, ResourceAssignment, Scheduler, SchedulingPolicy, UeChannelState};
+pub use scheduler::{
+    jain_fairness, ResourceAssignment, Scheduler, SchedulingPolicy, UeChannelState,
+};
 
 /// MAC layer entry point.
 pub struct MacLayer {

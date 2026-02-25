@@ -67,6 +67,34 @@ Type alias for `Vec<u8>`. All protocol data units flow as byte vectors; upper la
 
 Structured numerical self-validation framework. Every physics module implements the `Validate` trait so that CI can verify known-good numerical results automatically. See `validation.rs`.
 
+### `BaselineSource`
+
+Provenance record for an external reference dataset. Holds three `&'static str` fields: `system` (e.g. `"srsRAN"`), `metric` (e.g. `"BER"`), and `citation` (URL or paper reference). Used as the header for a `BaselineDataset`.
+
+### `BaselinePoint`
+
+A single reference data point from an external system: `input_parameter` (x-axis, e.g. SNR in dB) and `reference_value` (y-axis, e.g. BER). Collected into a `BaselineDataset`.
+
+### `BaselineDataset`
+
+Named collection of `BaselinePoint` values from one external system, tagged with a `BaselineSource`. Core comparison methods:
+
+- `from_csv_str(csv, source)` — parse a two-column CSV (`input_parameter,reference_value`)
+- `compare_values(simulated, tolerance_pct)` — nearest-neighbour match against raw `(f64, f64)` pairs
+- `compare(sim_fn, tolerance_pct)` — evaluate `sim_fn` at each reference x-value
+
+Returns a `BaselineComparison`.
+
+### `BaselineComparison`
+
+Result of comparing simulation outputs against an external reference. Mirrors `ValidationResult`:
+
+- `passed() -> bool` — true if every point is within tolerance
+- `summary() -> String` — human-readable per-point report
+- `into_validation_result() -> ValidationResult` — drops into the standard CI `Validate` pipeline
+
+See `docs/comparison-strategy.md` for the full methodology.
+
 ## Public API Contract
 
 - `Frequency::from_hz(hz: f64) -> Frequency` — wrap a raw Hz value
