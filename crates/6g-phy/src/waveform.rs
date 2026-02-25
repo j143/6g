@@ -22,7 +22,7 @@
 //! - Proakis & Salehi, *Digital Communications*, 5th ed.
 
 use serde::{Deserialize, Serialize};
-use sixg_common::types::FrequencyBand;
+use sixg_common::types::{FrequencyBand, SnrDb};
 
 /// Waveform scheme used by the 6G air interface.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,9 +74,9 @@ fn erfc_approx(x: f64) -> f64 {
 
 /// BER for BPSK modulation in an AWGN channel.
 ///
-/// `BER = Q(√(2·SNR_linear))` where `snr_db` is the per-bit Eb/N0.
-pub fn bpsk_ber_awgn(snr_db: f64) -> f64 {
-    let snr_linear = 10f64.powf(snr_db / 10.0);
+/// `BER = Q(√(2·SNR_linear))` where `snr` is the per-bit Eb/N0 in dB.
+pub fn bpsk_ber_awgn(snr: SnrDb) -> f64 {
+    let snr_linear = 10f64.powf(snr.0 / 10.0);
     q_function((2.0 * snr_linear).sqrt())
 }
 
@@ -92,12 +92,12 @@ pub fn bpsk_ber_awgn(snr_db: f64) -> f64 {
 /// where γ = π²/3 from the standard OFDM ICI analysis
 /// (Pollet et al., *BER Sensitivity of OFDM to CFO and Wiener Phase Noise*,
 /// IEEE Trans. Commun. 1995).
-pub fn ofdm_ber_high_doppler(snr_db: f64, normalized_doppler: f64) -> f64 {
+pub fn ofdm_ber_high_doppler(snr: SnrDb, normalized_doppler: f64) -> f64 {
     const GAMMA: f64 = std::f64::consts::PI * std::f64::consts::PI / 3.0;
-    let snr_linear = 10f64.powf(snr_db / 10.0);
+    let snr_linear = 10f64.powf(snr.0 / 10.0);
     let snr_eff = snr_linear / (1.0 + GAMMA * normalized_doppler.powi(2));
     let snr_eff_db = 10.0 * snr_eff.log10();
-    bpsk_ber_awgn(snr_eff_db)
+    bpsk_ber_awgn(SnrDb(snr_eff_db))
 }
 
 impl Waveform {
@@ -126,26 +126,26 @@ impl Waveform {
     /// delay-Doppler diversity. For CP-OFDM / DFT-s-OFDM the same formula
     /// applies in a static channel; use `ber_high_doppler` to see the
     /// OTFS advantage in high-mobility scenarios.
-    pub fn ber_awgn(&self, snr_db: f64) -> f64 {
+    pub fn ber_awgn(&self, snr: SnrDb) -> f64 {
         match self {
             Waveform::CpOfdm { .. }
             | Waveform::DftSOfdm { .. }
             | Waveform::Otfs { .. }
-            | Waveform::AiNative { .. } => bpsk_ber_awgn(snr_db),
+            | Waveform::AiNative { .. } => bpsk_ber_awgn(snr),
         }
     }
 
-    /// BER in a high-Doppler channel at `snr_db` (Eb/N0) with the given
+    /// BER in a high-Doppler channel at `snr` (Eb/N0 in dB) with the given
     /// normalized Doppler shift `ε = f_d / Δf`.
     ///
     /// OTFS achieves the AWGN bound regardless of Doppler because its
     /// signalling is native to the delay-Doppler domain. CP-OFDM suffers
     /// ICI degradation (see [`ofdm_ber_high_doppler`]).
-    pub fn ber_high_doppler(&self, snr_db: f64, normalized_doppler: f64) -> f64 {
+    pub fn ber_high_doppler(&self, snr: SnrDb, normalized_doppler: f64) -> f64 {
         match self {
-            Waveform::Otfs { .. } => bpsk_ber_awgn(snr_db),
+            Waveform::Otfs { .. } => bpsk_ber_awgn(snr),
             Waveform::CpOfdm { .. } | Waveform::DftSOfdm { .. } | Waveform::AiNative { .. } => {
-                ofdm_ber_high_doppler(snr_db, normalized_doppler)
+                ofdm_ber_high_doppler(snr, normalized_doppler)
             }
         }
     }
@@ -169,21 +169,21 @@ mod tests {
 
     #[test]
     fn bpsk_ber_decreases_with_snr() {
-        let ber_0db = bpsk_ber_awgn(0.0);
-        let ber_10db = bpsk_ber_awgn(10.0);
+        let ber_0db = bpsk_ber_awgn(SnrDb(0.0));
+        let ber_10db = bpsk_ber_awgn(SnrDb(10.0));
         assert!(ber_10db < ber_0db, "BER must decrease as SNR increases");
     }
 
     #[test]
     fn bpsk_ber_at_known_points() {
         // BPSK BER at 0 dB Eb/N0 ≈ 0.0786 (well-known result)
-        let ber = bpsk_ber_awgn(0.0);
+        let ber = bpsk_ber_awgn(SnrDb(0.0));
         assert!(
             (ber - 0.0786).abs() < 0.002,
             "BER at 0 dB should be ~0.0786, got {ber:.4}"
         );
         // At 10 dB, BER < 10⁻⁴
-        let ber_10 = bpsk_ber_awgn(10.0);
+        let ber_10 = bpsk_ber_awgn(SnrDb(10.0));
         assert!(
             ber_10 < 1e-4,
             "BER at 10 dB should be very low, got {ber_10:.2e}"
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn otfs_outperforms_ofdm_in_high_doppler() {
         // At 10 dB SNR, high Doppler (ε = 0.3): OTFS should have lower BER
-        let snr_db = 10.0;
+        let snr = SnrDb(10.0);
         let norm_doppler = 0.3;
         let otfs = Waveform::Otfs {
             delay_bins: 16,
@@ -203,8 +203,8 @@ mod tests {
             subcarrier_spacing_khz: 120,
             fft_size: 2048,
         };
-        let ber_otfs = otfs.ber_high_doppler(snr_db, norm_doppler);
-        let ber_ofdm = ofdm.ber_high_doppler(snr_db, norm_doppler);
+        let ber_otfs = otfs.ber_high_doppler(snr, norm_doppler);
+        let ber_ofdm = ofdm.ber_high_doppler(snr, norm_doppler);
         assert!(
             ber_otfs < ber_ofdm,
             "OTFS BER ({ber_otfs:.2e}) must be lower than OFDM BER ({ber_ofdm:.2e}) in high-Doppler"
@@ -213,13 +213,13 @@ mod tests {
 
     #[test]
     fn ofdm_ber_degrades_with_doppler() {
-        let snr_db = 10.0;
+        let snr = SnrDb(10.0);
         let ofdm = Waveform::CpOfdm {
             subcarrier_spacing_khz: 120,
             fft_size: 2048,
         };
-        let ber_static = ofdm.ber_awgn(snr_db);
-        let ber_doppler = ofdm.ber_high_doppler(snr_db, 0.3);
+        let ber_static = ofdm.ber_awgn(snr);
+        let ber_doppler = ofdm.ber_high_doppler(snr, 0.3);
         assert!(
             ber_doppler > ber_static,
             "OFDM BER must be worse under Doppler"
@@ -233,8 +233,9 @@ mod tests {
             delay_bins: 16,
             doppler_bins: 16,
         };
-        let ber_awgn = otfs.ber_awgn(10.0);
-        let ber_zero_doppler = otfs.ber_high_doppler(10.0, 0.0);
+        let snr = SnrDb(10.0);
+        let ber_awgn = otfs.ber_awgn(snr);
+        let ber_zero_doppler = otfs.ber_high_doppler(snr, 0.0);
         assert!(
             (ber_awgn - ber_zero_doppler).abs() < 1e-15,
             "OTFS BER with zero Doppler must match AWGN bound"

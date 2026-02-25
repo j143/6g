@@ -47,10 +47,12 @@ PHYSICAL_PARAM_NAMES = re.compile(
 # Files to skip (test files, build scripts, validation helpers)
 SKIP_FILES = {"validation.rs", "build.rs"}
 
-# Functions whose bare-f64 use is intentional (internal helpers, constructors)
+# Functions whose bare-f64 use is intentional (internal helpers, constructors, setters)
 ALLOWED_FUNCTIONS = {
     "from_hz", "from_ghz", "from_thz", "new",
     "from_db", "to_db", "as_hz", "as_ghz", "as_thz",
+    # Grid/map setter: `power` here is a dimensionless cell value, not a physical quantity
+    "set",
 }
 
 

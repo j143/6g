@@ -45,6 +45,8 @@
 /// Speed of light (m/s).
 const C: f64 = 3.0e8;
 
+use sixg_common::types::{Bandwidth, Distance, Frequency, SnrLinear, Velocity};
+
 /// 2-D range-Doppler power map.
 ///
 /// Each cell `(range_bin, doppler_bin)` stores the received signal power
@@ -119,29 +121,29 @@ impl RangeDopplerMap {
     }
 }
 
-/// Compute the range bin index for a target at `distance_m`.
+/// Compute the range bin index for a target at `distance`.
 ///
 /// Range resolution: `Δr = c / (2B)`
-/// Bin index: `k = floor(distance_m / Δr)`
-pub fn range_bin(distance_m: f64, bandwidth_hz: f64) -> usize {
-    let range_resolution_m = C / (2.0 * bandwidth_hz);
-    (distance_m / range_resolution_m).floor() as usize
+/// Bin index: `k = floor(distance / Δr)`
+pub fn range_bin(distance: Distance, bandwidth: Bandwidth) -> usize {
+    let range_resolution = C / (2.0 * bandwidth.as_hz());
+    (distance.as_m() / range_resolution).floor() as usize
 }
 
 /// Range resolution (m) for a given bandwidth.
 ///
 /// `Δr = c / (2B)`
-pub fn range_resolution_m(bandwidth_hz: f64) -> f64 {
-    C / (2.0 * bandwidth_hz)
+pub fn range_resolution_m(bandwidth: Bandwidth) -> Distance {
+    Distance::from_m(C / (2.0 * bandwidth.as_hz()))
 }
 
-/// Compute the Doppler bin index for a target moving at `velocity_m_s`.
+/// Compute the Doppler bin index for a target moving at `velocity`.
 ///
 /// Doppler shift: `f_d = 2v·f_c / c`
 /// Doppler resolution: `Δf_d = 1 / T_obs`
 /// Bin index: `k = floor(f_d / Δf_d)`
-pub fn doppler_bin(velocity_m_s: f64, carrier_freq_hz: f64, observation_time_s: f64) -> usize {
-    let doppler_shift_hz = 2.0 * velocity_m_s * carrier_freq_hz / C;
+pub fn doppler_bin(velocity: Velocity, carrier_freq: Frequency, observation_time_s: f64) -> usize {
+    let doppler_shift_hz = 2.0 * velocity.as_m_per_s() * carrier_freq.as_hz() / C;
     let doppler_resolution_hz = 1.0 / observation_time_s;
     (doppler_shift_hz / doppler_resolution_hz).floor() as usize
 }
@@ -167,14 +169,14 @@ pub fn doppler_resolution_hz(observation_time_s: f64) -> f64 {
 /// - Pd: `exp(−T / (σ² + |s|²)) = Pfa^(1/(1 + SNR))`
 ///
 /// `snr_sensing` is the per-cell signal-to-noise ratio (linear, ≥ 0).
-pub fn pd_from_pfa(pfa: f64, snr_sensing: f64) -> f64 {
+pub fn pd_from_pfa(pfa: f64, snr_sensing: SnrLinear) -> f64 {
     if pfa <= 0.0 {
         return 0.0;
     }
     if pfa >= 1.0 {
         return 1.0;
     }
-    pfa.powf(1.0 / (1.0 + snr_sensing))
+    pfa.powf(1.0 / (1.0 + snr_sensing.as_linear()))
 }
 
 /// Detection threshold T (in units of noise variance σ²) for a given Pfa.
@@ -191,30 +193,30 @@ mod tests {
 
     #[test]
     fn range_bin_zero_at_zero_distance() {
-        assert_eq!(range_bin(0.0, 1e9), 0);
+        assert_eq!(range_bin(Distance::from_m(0.0), Bandwidth::from_hz(1e9)), 0);
     }
 
     #[test]
     fn range_bin_increases_with_distance() {
-        let bw = 1e9; // 1 GHz → Δr = 0.15 m
-        let bin_near = range_bin(10.0, bw);
-        let bin_far = range_bin(100.0, bw);
+        let bw = Bandwidth::from_hz(1e9); // 1 GHz → Δr = 0.15 m
+        let bin_near = range_bin(Distance::from_m(10.0), bw);
+        let bin_far = range_bin(Distance::from_m(100.0), bw);
         assert!(bin_far > bin_near);
     }
 
     #[test]
     fn range_resolution_1ghz_bandwidth() {
         // c / (2 × 1 GHz) = 3e8 / 2e9 = 0.15 m
-        let dr = range_resolution_m(1e9);
+        let dr = range_resolution_m(Bandwidth::from_hz(1e9)).as_m();
         assert!((dr - 0.15).abs() < 1e-6, "Expected 0.15 m, got {dr}");
     }
 
     #[test]
     fn doppler_bin_increases_with_velocity() {
-        let fc = 150e9; // 150 GHz
+        let fc = Frequency::from_hz(150e9); // 150 GHz
         let t_obs = 1e-3; // 1 ms
-        let bin_slow = doppler_bin(10.0, fc, t_obs);
-        let bin_fast = doppler_bin(100.0, fc, t_obs);
+        let bin_slow = doppler_bin(Velocity::from_m_per_s(10.0), fc, t_obs);
+        let bin_fast = doppler_bin(Velocity::from_m_per_s(100.0), fc, t_obs);
         assert!(bin_fast > bin_slow);
     }
 
@@ -222,7 +224,7 @@ mod tests {
     fn pd_equals_pfa_at_zero_snr() {
         // SNR = 0: target adds no power, Pd must equal Pfa
         let pfa = 0.01;
-        let pd = pd_from_pfa(pfa, 0.0);
+        let pd = pd_from_pfa(pfa, SnrLinear::new(0.0));
         assert!(
             (pd - pfa).abs() < 1e-10,
             "Pd must equal Pfa at SNR=0, got {pd}"
@@ -232,8 +234,8 @@ mod tests {
     #[test]
     fn pd_increases_with_snr() {
         let pfa = 0.01;
-        let pd_low_snr = pd_from_pfa(pfa, 1.0);
-        let pd_high_snr = pd_from_pfa(pfa, 20.0);
+        let pd_low_snr = pd_from_pfa(pfa, SnrLinear::new(1.0));
+        let pd_high_snr = pd_from_pfa(pfa, SnrLinear::new(20.0));
         assert!(
             pd_high_snr > pd_low_snr,
             "Higher SNR must give higher Pd: {pd_high_snr:.4} vs {pd_low_snr:.4}"
@@ -243,7 +245,7 @@ mod tests {
     #[test]
     fn pd_approaches_one_at_high_snr() {
         let pfa = 0.001;
-        let pd = pd_from_pfa(pfa, 1000.0);
+        let pd = pd_from_pfa(pfa, SnrLinear::new(1000.0));
         assert!(
             pd > 0.99,
             "At very high SNR, Pd should approach 1, got {pd:.4}"
@@ -252,12 +254,12 @@ mod tests {
 
     #[test]
     fn pfa_zero_gives_zero_pd() {
-        assert_eq!(pd_from_pfa(0.0, 10.0), 0.0);
+        assert_eq!(pd_from_pfa(0.0, SnrLinear::new(10.0)), 0.0);
     }
 
     #[test]
     fn pfa_one_gives_one_pd() {
-        assert_eq!(pd_from_pfa(1.0, 10.0), 1.0);
+        assert_eq!(pd_from_pfa(1.0, SnrLinear::new(10.0)), 1.0);
     }
 
     #[test]

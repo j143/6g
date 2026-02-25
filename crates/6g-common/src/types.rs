@@ -79,6 +79,105 @@ pub enum FrequencyBand {
     Thz,
 }
 
+/// Physical distance in metres.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Distance(f64); // metres
+
+impl Distance {
+    /// Create a `Distance` from a value in metres.
+    pub fn from_m(m: f64) -> Self {
+        Self(m)
+    }
+
+    /// Return the distance in metres.
+    pub fn as_m(self) -> f64 {
+        self.0
+    }
+}
+
+/// Power, gain or loss value in decibels (dB or dBm depending on context).
+///
+/// Used for path loss (dB), transmit power (dBm), noise figure (dB),
+/// and SNR gain (dB) throughout the 6G PHY stack.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct PowerDb(f64); // dB
+
+impl PowerDb {
+    /// Wrap a raw dB value.
+    pub fn new(db: f64) -> Self {
+        Self(db)
+    }
+
+    /// Return the raw dB value.
+    pub fn as_db(self) -> f64 {
+        self.0
+    }
+}
+
+/// Signal bandwidth in hertz (Hz).
+///
+/// Use `from_hz`, `from_mhz`, or `from_ghz` constructors and `as_hz`
+/// to retrieve the underlying value.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Bandwidth(f64); // Hz
+
+impl Bandwidth {
+    /// Create a `Bandwidth` from a value in hertz.
+    pub fn from_hz(hz: f64) -> Self {
+        Self(hz)
+    }
+
+    /// Create a `Bandwidth` from a value in megahertz.
+    pub fn from_mhz(mhz: f64) -> Self {
+        Self(mhz * 1e6)
+    }
+
+    /// Create a `Bandwidth` from a value in gigahertz.
+    pub fn from_ghz(ghz: f64) -> Self {
+        Self(ghz * 1e9)
+    }
+
+    /// Return the bandwidth in hertz.
+    pub fn as_hz(self) -> f64 {
+        self.0
+    }
+}
+
+/// Velocity in metres per second (m/s).
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Velocity(f64); // m/s
+
+impl Velocity {
+    /// Create a `Velocity` from a value in metres per second.
+    pub fn from_m_per_s(mps: f64) -> Self {
+        Self(mps)
+    }
+
+    /// Return the velocity in metres per second.
+    pub fn as_m_per_s(self) -> f64 {
+        self.0
+    }
+}
+
+/// Linear (not dB) signal-to-noise ratio: P_signal / P_noise (dimensionless).
+///
+/// Use this at API boundaries where the SNR is expressed as a linear ratio
+/// rather than in dB. See also [`SnrDb`] for the dB representation.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct SnrLinear(f64);
+
+impl SnrLinear {
+    /// Wrap a raw linear SNR value.
+    pub fn new(linear: f64) -> Self {
+        Self(linear)
+    }
+
+    /// Return the raw linear SNR value.
+    pub fn as_linear(self) -> f64 {
+        self.0
+    }
+}
+
 /// Unique identifier for a User Equipment (UE).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct UeId(pub u64);
@@ -147,5 +246,35 @@ mod tests {
         let s1 = SliceId(1);
         let s2 = SliceId(2);
         assert_ne!(s1, s2);
+    }
+
+    #[test]
+    fn distance_round_trip() {
+        let d = Distance::from_m(100.0);
+        assert!((d.as_m() - 100.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn power_db_round_trip() {
+        let p = PowerDb::new(-30.0);
+        assert!((p.as_db() - -30.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn bandwidth_round_trip() {
+        let b = Bandwidth::from_ghz(1.0);
+        assert!((b.as_hz() - 1e9).abs() < 1.0);
+    }
+
+    #[test]
+    fn velocity_round_trip() {
+        let v = Velocity::from_m_per_s(7500.0);
+        assert!((v.as_m_per_s() - 7500.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn snr_linear_round_trip() {
+        let s = SnrLinear::new(100.0);
+        assert!((s.as_linear() - 100.0).abs() < 1e-10);
     }
 }

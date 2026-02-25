@@ -39,6 +39,26 @@ Typed wrappers over primitive integers to prevent accidental mixing of bearer an
 
 Signal-to-Noise Ratio stored as a `f64` dB value. Use this instead of bare `f64` at API boundaries where SNR is a meaningful physical quantity.
 
+### `SnrLinear`
+
+Linear (not dB) signal-to-noise ratio P_signal / P_noise (dimensionless ratio). Used in RIS channel models and ISAC detection functions where the linear scale is more natural than dB.
+
+### `Distance`
+
+Physical distance in metres. Use `Distance::from_m(x)` to construct and `.as_m()` to extract. Required at all `pub fn` boundaries where a distance parameter appears.
+
+### `PowerDb`
+
+Power, gain, or loss in decibels (dB or dBm depending on context). Covers path loss, transmit power, noise figure, and SNR gain. Use `PowerDb::new(db)` / `.as_db()`.
+
+### `Bandwidth`
+
+Signal bandwidth in hertz (Hz). Constructors: `from_hz`, `from_mhz`, `from_ghz`. Accessor: `as_hz()`. Distinct from `Frequency` even though they share units — bandwidth is a spectral width, not a carrier position.
+
+### `Velocity`
+
+Velocity in metres per second (m/s). Used in Doppler shift calculations in `6g-isac/detection.rs`. Constructor: `Velocity::from_m_per_s(x)`. Accessor: `as_m_per_s()`.
+
 ### `Payload`
 
 Type alias for `Vec<u8>`. All protocol data units flow as byte vectors; upper layers add semantic structure.
