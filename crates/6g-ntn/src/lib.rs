@@ -8,7 +8,9 @@
 //! Key challenges addressed here:
 //! * Very long propagation delays (Doppler compensation, timing advance)
 //! * Dynamic topology management
-//! * Seamless handover between NTN and terrestrial segments
+//! * Seamless handover between NTN and terrestrial segments (see [`handover`])
+
+pub mod handover;
 
 use serde::{Deserialize, Serialize};
 use sixg_common::types::Position3D;

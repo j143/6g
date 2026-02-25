@@ -20,6 +20,8 @@ pub struct SystemConfig {
     pub ntn_enabled: bool,
     /// Enable Semantic Communications.
     pub semantic_enabled: bool,
+    /// Enable Digital Twin real-time network state mirroring (Phase 4).
+    pub digital_twin_enabled: bool,
     /// Target energy efficiency in Mb/J.
     pub target_energy_efficiency_mb_per_j: f64,
 }
@@ -34,6 +36,7 @@ impl Default for SystemConfig {
             isac_enabled: true,
             ntn_enabled: true,
             semantic_enabled: true,
+            digital_twin_enabled: true,
             target_energy_efficiency_mb_per_j: 1000.0,
         }
     }
