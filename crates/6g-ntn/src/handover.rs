@@ -21,7 +21,7 @@
 //! 2. **Propagation delay exceeded** — LEO delay > 5 ms (e.g. degraded orbit).
 //! 3. **Low satellite elevation angle** — elevation < 10° (link near horizon).
 
-use sixg_common::types::UeId;
+use sixg_common::types::{Distance, PowerDb, UeId};
 use sixg_common::validation::{Validate, ValidationCheck, ValidationResult};
 
 /// Speed of light in metres per second (exact, SI definition).
@@ -32,15 +32,15 @@ pub const LEO_ALTITUDE_M: f64 = 550_000.0;
 
 /// Compute the one-way propagation delay from a satellite at the given altitude to ground.
 ///
-/// Formula: `delay_ms = altitude_m / c × 1000`
+/// Formula: `delay_ms = altitude.as_m() / c × 1000`
 ///
 /// # Arguments
-/// * `altitude_m` — satellite altitude in metres above ground level.
+/// * `altitude` — satellite altitude above ground level (metres).
 ///
 /// # Returns
 /// One-way propagation delay in milliseconds.
-pub fn leo_propagation_delay_ms(altitude_m: f64) -> f64 {
-    altitude_m / SPEED_OF_LIGHT_M_S * 1000.0
+pub fn leo_propagation_delay_ms(altitude: Distance) -> f64 {
+    altitude.as_m() / SPEED_OF_LIGHT_M_S * 1000.0
 }
 
 /// Condition that can trigger an NTN → terrestrial handover.
@@ -49,7 +49,7 @@ pub enum HandoverTrigger {
     /// Terrestrial RSRP exceeds NTN link quality by the given delta in dB.
     BetterTerrestrialRsrp {
         /// RSRP difference in dB (terrestrial − NTN). Positive = terrestrial is better.
-        delta_db: f64,
+        delta_db: PowerDb,
     },
     /// Measured LEO propagation delay exceeds an acceptable round-trip threshold.
     PropagationDelayExceeded {
@@ -79,7 +79,7 @@ pub enum HandoverDecision {
 /// single trigger condition is satisfied.
 pub struct NtnHandoverManager {
     /// Minimum RSRP delta (dB) for terrestrial link to be preferred (hysteresis).
-    pub hysteresis_db: f64,
+    pub hysteresis_db: PowerDb,
     /// Maximum acceptable one-way propagation delay in milliseconds.
     pub max_propagation_delay_ms: f64,
     /// Minimum acceptable satellite elevation angle in degrees.
@@ -92,7 +92,7 @@ impl NtnHandoverManager {
     /// Defaults: hysteresis = 3 dB; max delay = 5 ms; min elevation = 10°.
     pub fn new() -> Self {
         Self {
-            hysteresis_db: 3.0,
+            hysteresis_db: PowerDb::new(3.0),
             max_propagation_delay_ms: 5.0,
             min_elevation_deg: 10.0,
         }
@@ -105,7 +105,7 @@ impl NtnHandoverManager {
         for trigger in triggers {
             match *trigger {
                 HandoverTrigger::BetterTerrestrialRsrp { delta_db } => {
-                    if delta_db >= self.hysteresis_db {
+                    if delta_db.as_db() >= self.hysteresis_db.as_db() {
                         return HandoverDecision::Proceed;
                     }
                 }
@@ -137,7 +137,7 @@ pub struct NtnHandoverValidation;
 impl Validate for NtnHandoverValidation {
     fn validate() -> ValidationResult {
         // Physics check: 550 km / c × 1000 ≈ 1.8348 ms.
-        let delay_ms = leo_propagation_delay_ms(LEO_ALTITUDE_M);
+        let delay_ms = leo_propagation_delay_ms(Distance::from_m(LEO_ALTITUDE_M));
         // Reference: 550_000 / 299_792_458 × 1000 = 1.83476 ms (6 sig. figs.).
         let expected_ms = 1.8348;
 
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn leo_propagation_delay_at_550km_approx_1_83ms() {
         // 550_000 m / 299_792_458 m·s⁻¹ × 1000 ≈ 1.8348 ms
-        let delay = leo_propagation_delay_ms(LEO_ALTITUDE_M);
+        let delay = leo_propagation_delay_ms(Distance::from_m(LEO_ALTITUDE_M));
         assert!(
             (delay - 1.8348).abs() < 0.01,
             "LEO delay should be ≈ 1.83 ms, got {delay:.4} ms"
@@ -196,7 +196,9 @@ mod tests {
         let mgr = NtnHandoverManager::new();
         let dec = mgr.evaluate(
             UeId(1),
-            &[HandoverTrigger::BetterTerrestrialRsrp { delta_db: 5.0 }],
+            &[HandoverTrigger::BetterTerrestrialRsrp {
+                delta_db: PowerDb::new(5.0),
+            }],
         );
         assert_eq!(dec, HandoverDecision::Proceed);
     }
@@ -206,7 +208,9 @@ mod tests {
         let mgr = NtnHandoverManager::new();
         let dec = mgr.evaluate(
             UeId(1),
-            &[HandoverTrigger::BetterTerrestrialRsrp { delta_db: 1.0 }],
+            &[HandoverTrigger::BetterTerrestrialRsrp {
+                delta_db: PowerDb::new(1.0),
+            }],
         );
         assert_eq!(dec, HandoverDecision::Maintain);
     }
@@ -227,9 +231,13 @@ mod tests {
         let dec = mgr.evaluate(
             UeId(3),
             &[
-                HandoverTrigger::BetterTerrestrialRsrp { delta_db: 1.0 },
+                HandoverTrigger::BetterTerrestrialRsrp {
+                    delta_db: PowerDb::new(1.0),
+                },
                 HandoverTrigger::PropagationDelayExceeded { delay_ms: 1.8 },
-                HandoverTrigger::LowElevationAngle { elevation_deg: 45.0 },
+                HandoverTrigger::LowElevationAngle {
+                    elevation_deg: 45.0,
+                },
             ],
         );
         assert_eq!(dec, HandoverDecision::Maintain);
