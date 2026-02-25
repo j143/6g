@@ -1,5 +1,6 @@
 //! Common types, errors, and configuration shared across the 6G stack.
 
+pub mod baseline;
 pub mod config;
 pub mod error;
 pub mod types;
