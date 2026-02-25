@@ -206,10 +206,7 @@ mod tests {
     fn zero_sensing_gives_infinite_crb() {
         let cfg = default_cfg();
         let crb = cfg.crb_range_m2(0.0);
-        assert!(
-            crb.is_infinite(),
-            "CRB at α=0 must be infinite, got {crb}"
-        );
+        assert!(crb.is_infinite(), "CRB at α=0 must be infinite, got {crb}");
     }
 
     #[test]
@@ -230,7 +227,11 @@ mod tests {
     fn pareto_frontier_has_correct_length() {
         let cfg = default_cfg();
         let frontier = cfg.pareto_frontier(10);
-        assert_eq!(frontier.len(), 11, "pareto_frontier(10) should return 11 points");
+        assert_eq!(
+            frontier.len(),
+            11,
+            "pareto_frontier(10) should return 11 points"
+        );
     }
 
     #[test]
@@ -265,9 +266,6 @@ mod tests {
     fn default_sensing_ratio_matches_subcarrier_fraction() {
         let cfg = DfrcConfig::new(100.0, 1e9, 64, 256);
         let ratio = cfg.default_sensing_ratio();
-        assert!(
-            (ratio - 0.25).abs() < 1e-10,
-            "64/256 = 0.25, got {ratio}"
-        );
+        assert!((ratio - 0.25).abs() < 1e-10, "64/256 = 0.25, got {ratio}");
     }
 }

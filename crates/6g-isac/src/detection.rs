@@ -244,7 +244,10 @@ mod tests {
     fn pd_approaches_one_at_high_snr() {
         let pfa = 0.001;
         let pd = pd_from_pfa(pfa, 1000.0);
-        assert!(pd > 0.99, "At very high SNR, Pd should approach 1, got {pd:.4}");
+        assert!(
+            pd > 0.99,
+            "At very high SNR, Pd should approach 1, got {pd:.4}"
+        );
     }
 
     #[test]

@@ -102,12 +102,7 @@ pub struct RisChannel {
 
 impl RisChannel {
     /// Create a new RIS channel model.
-    pub fn new(
-        h_direct: f64,
-        h_reflect_in: f64,
-        h_reflect_out: f64,
-        ris: RisConfig,
-    ) -> Self {
+    pub fn new(h_direct: f64, h_reflect_in: f64, h_reflect_out: f64, ris: RisConfig) -> Self {
         Self {
             h_direct,
             h_reflect_in,
@@ -180,9 +175,9 @@ mod tests {
             ..RisConfig::default()
         };
         let channel = RisChannel::new(
-            1e-4,  // very weak direct path (shadowed)
-            0.01,  // BS → RIS
-            0.01,  // RIS → UE
+            1e-4, // very weak direct path (shadowed)
+            0.01, // BS → RIS
+            0.01, // RIS → UE
             ris,
         );
         let snr_tx = 1.0; // normalized transmit SNR
