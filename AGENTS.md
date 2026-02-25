@@ -100,6 +100,50 @@ impl Validate for MyModule {
 
 CI runs `cargo test --workspace` which exercises these validators.
 
+## Pre-Finalisation Checklist (MANDATORY — run in this order before every commit)
+
+Every agent **MUST** run the following four checks and resolve all failures
+before pushing or finalising any code change.  A change is not done until
+all four pass.
+
+### 1. Formatting
+```bash
+cargo fmt
+cargo fmt --check          # must exit 0 — zero diffs allowed
+```
+
+### 2. Dependency Graph
+```bash
+cargo tree --workspace --edges normal | python3 scripts/check_dep_graph.py
+```
+Must print `Dependency graph check passed`.  Any `VIOLATION:` line is a
+blocker.  Cross-reference against the allowed graph in the
+**Dependency Graph** section above before adding any `[dependencies]` entry.
+
+### 3. Type Safety (AGENTS.md rules 1 & 2)
+Grep the diff for bare `f64`, `u64`, or `usize` at `pub fn` API surfaces:
+```bash
+cargo clippy --workspace -- -D warnings   # must exit 0
+```
+Additionally, manually verify:
+- No raw numeric type (`f64`, `u64`, `usize`) is used for a physical quantity
+  (frequency, distance, power, time, bandwidth, velocity) at any `pub fn`
+  boundary.  Use the newtypes in `crates/6g-common/src/types.rs` instead.
+- No new numeric newtype was created when one already exists in `types.rs`.
+
+### 4. Doc-Code and Test Coverage
+```bash
+cargo test --workspace     # must exit 0 — zero test failures
+```
+Additionally verify manually:
+- Every new `pub fn` has a `///` doc comment stating the physical units of
+  all arguments and the return value.
+- Every new physics/protocol module has at least one `#[test]` that checks
+  a known numerical result (formula + reference) and one `Validate` impl.
+
+> **Rule**: If any check fails, fix the issue first — do not proceed to the
+> next change.  Document which checks were run in the PR description.
+
 ## Context Compression: How to Navigate This Codebase Quickly
 
 1. Read `AGENTS.md` (this file) — rules and boundaries
