@@ -16,6 +16,10 @@ path = "experiments/exp_001_dfrc_pareto_frontier/run.rs"
 name = "exp_002_phy_baseline_comparison"
 path = "experiments/exp_002_phy_baseline_comparison/run.rs"
 
+[[example]]
+name = "exp_003_mac_srsran_baseline"
+path = "experiments/exp_003_mac_srsran_baseline/run.rs"
+
 [dependencies]
 sixg-common  = { path = "crates/6g-common" }
 sixg-phy     = { path = "crates/6g-phy" }

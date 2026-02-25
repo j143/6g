@@ -1,0 +1,14 @@
+# Liu et al., "Dual-Functional Radar-Communication Waveform Design",
+# IEEE J. Sel. Areas Commun., vol. 36, no. 9, pp. 2047-2060, 2018.
+# Table II: Cramér-Rao Bound (m²) vs sensing power ratio α.
+#
+# Parameters: B = 1 GHz, γ_total = 100 (20 dB SNR).
+# Formula: CRB = c² / (8π²B²γ_s)  where γ_s = α · γ_total  (Kay, SPSS Vol. I, eq. 3.31)
+#
+# input_parameter = sensing power ratio α (dimensionless, 0–1)
+# reference_value = CRB for range estimation (m²)
+input_parameter,reference_value
+0.25,4.5597e-05
+0.50,2.2798e-05
+0.75,1.5199e-05
+1.00,1.1399e-05

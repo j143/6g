@@ -1,0 +1,17 @@
+# ns-3 NR (5G-LENA) — Jain fairness index for Round Robin scheduling.
+#
+# Reference: CTTC 5G-LENA (https://gitlab.com/cttc-lena/nr).
+# Scenario: cttc-nr-demo, Round Robin scheduler, equal-SNR UEs, 100 TTIs,
+# 100 PRBs per TTI, 15 kHz SCS.  Jain index = (Σxᵢ)² / (n · Σxᵢ²).
+# At equal channel conditions RR produces perfect fairness (J = 1.0)
+# regardless of UE count.
+#
+# Command: ./ns3 run "cttc-nr-demo --numUe=N --scheduler=RoundRobin"
+#
+# input_parameter = number of UEs (dimensionless count)
+# reference_value = Jain fairness index (dimensionless, 0–1)
+input_parameter,reference_value
+5.0,1.0
+10.0,1.0
+20.0,1.0
+50.0,1.0
