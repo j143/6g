@@ -108,8 +108,8 @@ Your 5G experience is most transferable here. Key 6G differences:
 
 These are the most speculative but highest-impact layers:
 - [ ] Semantic encoder/decoder: Use a pre-trained sentence transformer (call via `ort` / ONNX in Rust) to encode text meaning, transmit compressed representation, decode at receiver — measure reconstruction quality vs raw bit transmission at same bandwidth
-- [ ] AI inference crate (`6g-ai`): Implement a channel estimation neural network (simple MLP) — compare with LS/MMSE estimators at various SNRs
-- [ ] Goal-oriented communication: Define a task (e.g., "transmit enough for image classification to succeed") — measure task success rate, not BER
+- [x] AI inference crate (`6g-ai`): Implement a channel estimation neural network (simple MLP) — compare with LS/MMSE estimators at various SNRs
+- [x] Goal-oriented communication: Define a task (e.g., "transmit enough for image classification to succeed") — measure task success rate, not BER
 
 ***
 

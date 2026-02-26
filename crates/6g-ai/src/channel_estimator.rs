@@ -42,6 +42,7 @@ use sixg_common::{
     types::SnrDb,
     validation::{Validate, ValidationCheck, ValidationResult},
 };
+use std::fmt;
 
 /// Normalised Mean Square Error (dimensionless ratio).
 ///
@@ -54,6 +55,12 @@ impl Nmse {
     /// Return the raw NMSE value.
     pub fn as_f64(self) -> f64 {
         self.0
+    }
+}
+
+impl fmt::Display for Nmse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:.6}", self.0)
     }
 }
 
@@ -102,6 +109,9 @@ impl MmseEstimator {
 /// on top of the MMSE estimate.  At high SNR, the MLP achieves up to 20%
 /// NMSE improvement over MMSE; at low SNR it reverts to MMSE.
 ///
+/// NOTE: this is a closed-form approximation of a trained MLP response used
+/// for Phase 5 analytical validation; it is not ONNX runtime inference.
+///
 /// The correction factor is derived from Dong et al. (IEEE OJCOMS 2020):
 /// ```text
 /// NMSE_MLP(γ) = NMSE_MMSE(γ) · (1 − δ(γ))
@@ -149,6 +159,9 @@ impl Validate for ChannelEstimatorValidation {
         //   MLP must be strictly better than MMSE (ratio < 1)
         // ----------------------------------------------------------------
         let mlp_10db = MlpEstimator::nmse(SnrDb(10.0)).as_f64();
+        let snr_db_10 = 10.0_f64;
+        let snr_linear_10db = 10.0_f64.powf(snr_db_10 / 10.0);
+        let delta_10db = 0.20 * (1.0 - (-(snr_linear_10db / 10.0)).exp());
 
         ValidationResult {
             module: "6g-ai::channel_estimator",
@@ -169,9 +182,17 @@ impl Validate for ChannelEstimatorValidation {
                 ValidationCheck::new(
                     "mlp_beats_mmse_at_10dB",
                     mlp_10db / mmse_10db,
-                    // expected ≈ 1 − δ(10) = 1 − 0.20·(1−exp(−1)) ≈ 0.8736
-                    1.0 - 0.20 * (1.0 - (-1.0_f64).exp()),
-                    0.1,
+                    // expected ≈ 1 − δ(10), where SNR_linear(10 dB) = 10
+                    1.0 - delta_10db,
+                    0.01,
+                ),
+                // Absolute MLP NMSE value at 10 dB:
+                // NMSE_MLP = NMSE_MMSE * (1 - δ(10))
+                ValidationCheck::new(
+                    "mlp_nmse_at_10dB",
+                    mlp_10db,
+                    (1.0 / 11.0) * (1.0 - delta_10db),
+                    0.01,
                 ),
             ],
         }
@@ -215,6 +236,30 @@ mod tests {
             let mlp = MlpEstimator::nmse(SnrDb(snr_db)).as_f64();
             assert!(mlp < mmse, "MLP must beat MMSE at {} dB", snr_db);
         }
+    }
+
+    /// At low SNR the learned correction should shrink (graceful degradation
+    /// toward MMSE), even while remaining slightly better than MMSE.
+    #[test]
+    fn mlp_graceful_degradation_at_negative_snr() {
+        let mmse_neg10 = MmseEstimator::nmse(SnrDb(-10.0)).as_f64();
+        let mlp_neg10 = MlpEstimator::nmse(SnrDb(-10.0)).as_f64();
+        let mmse_0 = MmseEstimator::nmse(SnrDb(0.0)).as_f64();
+        let mlp_0 = MlpEstimator::nmse(SnrDb(0.0)).as_f64();
+
+        let rel_improvement_at_neg10db = (mmse_neg10 - mlp_neg10) / mmse_neg10;
+        let rel_improvement_at_0db = (mmse_0 - mlp_0) / mmse_0;
+
+        assert!(
+            mlp_neg10 < mmse_neg10,
+            "MLP should still beat MMSE at -10 dB"
+        );
+        assert!(
+            rel_improvement_at_neg10db < rel_improvement_at_0db,
+            "MLP correction should shrink at lower SNR: gain(-10 dB)={} gain(0 dB)={}",
+            rel_improvement_at_neg10db,
+            rel_improvement_at_0db
+        );
     }
 
     /// Channel estimator validation suite must pass.
