@@ -64,6 +64,24 @@ Transmission of an image for classification: compare task success rate (correct 
 
 Success criterion: semantic encoding achieves the same classification accuracy as raw transmission at < 10% of the bandwidth.
 
+
+## Phase 5 Implemented Types
+
+- `TextSemanticCodec` — deterministic semantic text codec (term-frequency signature).
+- `BandwidthReduction` — dimensionless compression factor (`original_bytes / transmitted_bytes`).
+- `TaskSuccessRate` — dimensionless task-level success metric in `[0, 1]`.
+- `GoalOrientedPoint` — one operating point on task-success vs bandwidth curves.
+- `GoalOrientedMetrics` — raw/JPEG/semantic task-success models and sweep helper.
+- `SemanticValidation` — `Validate` implementation for Phase 5 semantic checks.
+
+## Reasoning Depth (Phase 5 Semantic Layer)
+
+1. **5G baseline:** bit-accurate transport plus traditional codecs (e.g., JPEG) evaluated via BER/packet metrics.
+2. **6G change + why:** optimize for task success and meaning preservation at much lower bandwidth.
+3. **MVP:** `TextSemanticCodec` + `GoalOrientedMetrics` comparing raw/JPEG/semantic operating points.
+4. **Quantitative success:** semantic mode sustains > 90% task success at 10× compression, with validation in `SemanticValidation`.
+5. **Known risks:** semantic drift and task-mismatch (good bit metrics but poor downstream task quality); mitigation is explicit task-success validation.
+
 ## References
 
 - Qin et al., *Semantic Communications: Principles and Challenges*, IEEE JSAC 2022

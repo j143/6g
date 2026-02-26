@@ -57,6 +57,23 @@ AI-native air interface is a core design principle in the 6G vision (Qualcomm AI
 - Replace the LS channel estimator in `6g-phy` with a trained MLP. Compare NMSE vs SNR.
 - Replace the Round Robin MAC scheduler with a DQN policy. Compare Jain index.
 
+
+## Phase 5 Implemented Types
+
+- `Nmse` — dimensionless normalized mean-square-error wrapper used by channel-estimation APIs.
+- `LsEstimator` — 5G baseline least-squares estimator (`NMSE = 1/SNR_linear`).
+- `MmseEstimator` — 5G baseline MMSE estimator (`NMSE = 1/(1+SNR_linear)`).
+- `MlpEstimator` — 6G AI-native estimator (learned residual correction on top of MMSE).
+- `ChannelEstimatorValidation` — `Validate` implementation for known numerical checks.
+
+## Reasoning Depth (Phase 5 Channel Estimation)
+
+1. **5G baseline:** LS/MMSE channel estimation with analytical NMSE curves.
+2. **6G change + why:** AI-native estimator adapts to deployment/channel structure for lower NMSE.
+3. **MVP:** `MlpEstimator` residual model that improves MMSE while degrading gracefully at low SNR.
+4. **Quantitative success:** `NMSE_MLP < NMSE_MMSE` for SNR ≥ 0 dB, validated by tests and `ChannelEstimatorValidation`.
+5. **Known risks:** model mismatch and overfitting to a specific channel prior; mitigation is to keep analytical LS/MMSE baselines in validation.
+
 ## References
 
 - Qualcomm, *AI-Native 6G Air Interface* (6G Foundry Series)
