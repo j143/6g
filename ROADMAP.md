@@ -19,31 +19,11 @@ Before writing a line of spec-driven code, internalize the standards landscape:
 
 ***
 
-## 2. Critical Assessment of the Copilot PR #1 Skeleton
-
-The PR adds 2,853 lines across 11 crates. Before merging, you need to evaluate it honestly:
-
-**What's good:**
-- Workspace Cargo structure is sound (`sixg-common` as the shared types crate is the right pattern)
-- Crate decomposition maps to the 6G protocol stack reasonably: PHY → MAC → RLC → PDCP → RRC → Core
-- `6g-ntn`, `6g-isac`, `6g-semantic`, `6g-ai` are the *right 6G-specific additions* over 5G
-- PDCP already has `CipheringAlgorithm` (Nea0–Nea3) which aligns with 5G NAS security baseline
-
-**What's a trap:**
-- Most crates are stubs with `TODO` comments — they look substantial but are not functional
-- The `6g-core` crate reuses 5G NF names (AMF, SMF, PCF, NSSF) verbatim — 6G proposes a **user-plane-first, flatter control plane** (Qualcomm's "Rethinking the control plane" paper) — blindly carrying over 5GC architecture defeats the purpose [github](https://github.com/j143/6g/pull/1/changes)
-- `6g-semantic` and `6g-ai` need proper theoretical grounding before implementation, otherwise they become hollow wrappers
-- No simulation harness exists — the experiment bed needs a runner, not just library crates
-
-**Decision:** Merge the skeleton as a **scaffold baseline**, but immediately create issues to rework each crate properly.
-
-***
-
-## 3. Architectural Foundation: 6G vs 5G — What You Must Understand
+## 2. Architectural Foundation: 6G vs 5G — What You Must Understand
 
 Since you know 5G call flows deeply, here's the delta mental model:
 
-### 3.1 The 6G Stack Additions (beyond 5G)
+### 2.1 The 6G Stack Additions (beyond 5G)
 
 ```
 ┌─────────────────────────────────┐
@@ -65,13 +45,13 @@ Since you know 5G call flows deeply, here's the delta mental model:
 └─────────────────────────────────┘
 ```
 
-### 3.2 The Qualcomm "User-plane first" Insight
+### 2.2 The Qualcomm "User-plane first" Insight
 
 In 5G, NAS and RRC are enormous — registration, authentication, session management all flow through complex control plane signaling you know well (AMF, AUSF, SEAF). 6G proposals (Qualcomm Foundry paper series) argue for collapsing this: the user plane should drive service access, with control plane as a thin adaptation layer. This means your `6g-core` crate's AMF-style entities need rethinking, not just renaming. [github](https://github.com/j143/6g/pull/1/changes)
 
 ***
 
-## 4. Project Planning: Phases
+## 3. Project Planning: Phases
 
 ### Phase 0 — Foundation (Weeks 1-4)
 **Goal: Stable, buildable workspace + spec reading discipline**
@@ -133,7 +113,7 @@ These are the most speculative but highest-impact layers:
 
 ***
 
-## 5. Validation Strategy
+## 4. Validation Strategy
 
 For an experiment bed, validation = reproducible, measurable results against known baselines.
 
@@ -151,7 +131,7 @@ Every experiment needs: **input parameters → deterministic simulation → outp
 
 ***
 
-## 6. Specification Guidance — What to Read and When
+## 5. Specification Guidance — What to Read and When
 
 **Now (before Phase 1):**
 - ITU-R M.2160 — IMT-2030 Framework (free download) — the requirements document
@@ -175,7 +155,7 @@ Every experiment needs: **input parameters → deterministic simulation → outp
 
 ***
 
-## 7. Reasoning Depth for Each Dev Task
+## 6. Reasoning Depth for Each Dev Task
 
 Apply this decision framework consistently:
 
@@ -197,7 +177,7 @@ Example applied to RIS (`6g-phy/ris.rs`):
 
 ***
 
-## 9. Comparing Against Real Systems
+## 7. Comparing Against Real Systems
 
 The experiment bed is only trustworthy when its outputs can be verified
 against systems that are already built.  The comparison methodology —
@@ -231,4 +211,3 @@ Given this is a solo research project that you might publish or use for PhD work
 - **Trait-based interfaces**: Define `trait Encoder`, `trait Scheduler`, `trait ChannelModel` — lets you swap implementations without restructuring
 - **Reproducible experiments**: Seed all RNGs, record all parameters in JSON output files alongside results
 - **GitHub Issues = experiment backlog**: One issue per experiment, not per task. Title format: `[EXP] ISAC: DFRC waveform vs separate radar+comms at 100 GHz`
-- **Branch protection on `main`**: Enable it (the repo is already warning you) — all work via PR [github](https://github.com/j143/6g)

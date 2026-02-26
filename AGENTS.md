@@ -1,8 +1,3 @@
-# AGENTS.md — Rules for AI Agents Working in This Repo
-
-This file is read by AI coding agents (GitHub Copilot Workspace, Claude, OpenAI Codex, etc.)
-before making any changes. Follow these rules without exception.
-
 ## Non-Negotiable Rules
 
 1. **NEVER create a new numeric type for frequency, power, distance, or time.**
@@ -51,8 +46,8 @@ before making any changes. Follow these rules without exception.
 | `6g-ntn`       | Satellite/HAPS/UAV link models          | MAC scheduling                  |
 | `6g-pdcp`      | Ciphering, header compression           | RLC or MAC concerns             |
 | `6g-rlc`       | Segmentation, ARQ, reordering           | PDCP or MAC concerns            |
-| `6g-rrc`       | Radio resource control, mobility        | Core network functions          |
-| `6g-core`      | Session management, policy              | RAN-layer details               |
+| `6g-rrc`       | Radio resource control, mobility        | RAN-layer details               |
+| `6g-core`      | Session management, policy              | Core network functions          |
 | `6g-semantic`  | Semantic encoding/decoding              | AI model internals              |
 
 ## Dependency Graph (No Upward Dependencies Allowed)
