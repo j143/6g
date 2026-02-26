@@ -1,0 +1,15 @@
+{
+  "description": "Phase 5 — Semantic & AI Layers",
+  "channel_estimator": {
+    "snr_sweep_db": [-5, 0, 5, 10, 15, 20],
+    "estimators": ["LS", "MMSE", "MLP"],
+    "reference": "Simeone, IEEE TCCN 2018; Dong et al., IEEE OJCOMS 2020"
+  },
+  "semantic_comms": {
+    "max_bandwidth_reduction": 30,
+    "sweep_points": 10,
+    "modes": ["raw", "jpeg", "semantic"],
+    "target": "semantic_success_at_10x > 0.90",
+    "reference": "Xie et al., IEEE Trans. Signal Process. 2021; Qin et al., IEEE JSAC 2022"
+  }
+}

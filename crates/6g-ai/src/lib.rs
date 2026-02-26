@@ -9,6 +9,7 @@
 //! * [`AiModel`] – trait implemented by every ML model in the stack
 //! * [`InferenceRequest`] / [`InferenceResult`] – common exchange types
 
+pub mod channel_estimator;
 pub mod inference;
 pub mod model;
 
