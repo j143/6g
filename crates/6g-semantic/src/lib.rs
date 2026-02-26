@@ -9,6 +9,8 @@
 //! * This reduces the transmitted data volume by orders of magnitude for
 //!   tasks such as image transmission, speech, sensor fusion, etc.
 
+pub mod codec;
+
 use sixg_common::types::Payload;
 
 /// Semantic task type – defines the goal of the communication.
