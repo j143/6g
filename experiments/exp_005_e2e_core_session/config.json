@@ -1,0 +1,8 @@
+{
+  "description": "End-to-end 6G core session: RRC attach → AMF registration → SMF PDU session → UPF uplink",
+  "ue_id": 42,
+  "gnb_node_id": 1,
+  "tracking_area": 1001,
+  "pdu_session_type": "Ip",
+  "user_data_bytes": 21
+}
