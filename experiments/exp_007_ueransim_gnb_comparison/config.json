@@ -1,0 +1,7 @@
+{
+  "description": "UERANSIM gNB/RRC/RLC integration test — reads UERANSIM config at runtime; falls back to default PLMN 999/70 TAC 1 SST 1",
+  "note": "PLMN/TAC/SST are read from the live UERANSIM gNB config when the binary is installed; ue_id_base matches UERANSIM default SUPI prefix 999700000000001",
+  "ue_id_base": 999700000000001,
+  "ue_count": 5,
+  "ping_payload_bytes": 67
+}
