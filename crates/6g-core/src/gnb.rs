@@ -54,6 +54,23 @@ impl GnbNode {
         idx
     }
 
+    /// Process an RRCRelease: move the UE to [`sixg_rrc::RrcState::Idle`].
+    ///
+    /// Returns `true` if the UE context was found and the state transition
+    /// succeeded (Connected → Idle).  The UE context is retained so that the
+    /// UE can re-attach later without re-creating the RRC context.
+    pub fn detach(&mut self, ue: UeId) -> bool {
+        if let Some(idx) =
+            (0..self.rrc.ue_count()).find(|&i| self.rrc.context(i).is_some_and(|c| c.ue == ue))
+        {
+            if let Some(ctx) = self.rrc.context_mut(idx) {
+                ctx.release();
+                return true;
+            }
+        }
+        false
+    }
+
     /// N2 interface stub: forward a NAS payload toward the AMF.
     ///
     /// Returns the number of bytes forwarded.  The AMF is invoked by the
@@ -143,5 +160,25 @@ mod tests {
             upf.stats.bytes_uplink >= 8,
             "first ROHC IR PDU must carry at least 8 bytes"
         );
+    }
+
+    #[test]
+    fn gnb_detach_moves_ue_to_idle() {
+        let mut gnb = GnbNode::new(NodeId(3));
+        let ue = UeId(7);
+        let ctx_idx = gnb.attach(ue);
+        assert_eq!(gnb.rrc.context(ctx_idx).unwrap().state, RrcState::Connected);
+        assert!(gnb.detach(ue), "detach must succeed for attached UE");
+        assert_eq!(
+            gnb.rrc.context(ctx_idx).unwrap().state,
+            RrcState::Idle,
+            "UE must be in Idle state after detach"
+        );
+    }
+
+    #[test]
+    fn gnb_detach_unknown_ue_returns_false() {
+        let mut gnb = GnbNode::new(NodeId(4));
+        assert!(!gnb.detach(UeId(99)));
     }
 }
