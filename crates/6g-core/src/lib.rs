@@ -27,6 +27,8 @@
 //! * [`smf`] – `PduSessionType::Semantic(GoalSpec)` — 6G-native semantic sessions
 //! * [`upf`] – `forward_semantic_uplink` + `forward_unknown_flow` (user-plane-first)
 //! * [`amf`] – `TrackingArea` enum (Terrestrial vs NTN-aware mobility)
+//! * [`sdf`] – SDF: Sensing Data Function — ISAC-to-core bridge (6G-new NF)
+//! * [`nrf`] – NRF capability graph: `NfCapability`-based discovery
 
 use std::net::Ipv4Addr;
 
@@ -40,6 +42,7 @@ pub mod nrf;
 pub mod nssf;
 pub mod pcf;
 pub mod sba_v2;
+pub mod sdf;
 pub mod smf;
 pub mod upf;
 
@@ -47,10 +50,11 @@ pub use amf::{Amf, TrackingArea};
 pub use ausf::{Ausf, SubscriberCredential, Udm};
 pub use digital_twin::DigitalTwin;
 pub use gnb::GnbNode;
-pub use nrf::{NfProfile, NfType, Nrf};
+pub use nrf::{NfCapability, NfProfile, NfType, Nrf};
 pub use nssf::{NetworkSliceSelector, SliceType};
 pub use pcf::Pcf;
 pub use sba_v2::SbaV2Registry;
+pub use sdf::{DetectionEvent, SensingDataFunction};
 pub use smf::{GoalSpec, PduSessionType, Smf};
 pub use upf::{FlowAction, Upf};
 
@@ -69,7 +73,7 @@ pub struct SessionGrant {
     pub gbr: Bitrate,
 }
 
-/// 6G Core Network instance bundling all mandatory NFs and Phase 4/5 extensions.
+/// 6G Core Network instance bundling all mandatory NFs and Phase 4/5/6 extensions.
 pub struct CoreNetwork {
     /// 5GC-derived baseline: Access and Mobility Management Function.
     pub amf: Amf,
@@ -87,8 +91,10 @@ pub struct CoreNetwork {
     pub digital_twin: DigitalTwin,
     /// Phase 5: AUSF — authentication server with UDM subscriber store.
     pub ausf: Ausf,
-    /// Phase 5: NRF — NF registration and discovery.
+    /// Phase 5/6: NRF — NF registration, capability-based discovery.
     pub nrf: Nrf,
+    /// Phase 6: SDF — Sensing Data Function (ISAC-to-core bridge, 6G-new NF).
+    pub sdf: SensingDataFunction,
 }
 
 impl CoreNetwork {
@@ -104,6 +110,7 @@ impl CoreNetwork {
             digital_twin: DigitalTwin::new(),
             ausf: Ausf::new(),
             nrf: Nrf::new(),
+            sdf: SensingDataFunction::new(),
         }
     }
 
@@ -297,6 +304,7 @@ impl Default for CoreNetwork {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sixg_common::types::{Distance, NodeId};
 
     #[test]
     fn core_network_initialises_with_phase4_components() {
@@ -310,6 +318,13 @@ mod tests {
         let core = CoreNetwork::new();
         assert_eq!(core.ausf.subscriber_count(), 0);
         assert_eq!(core.nrf.active_count(), 0);
+    }
+
+    #[test]
+    fn core_network_initialises_with_phase6_components() {
+        let core = CoreNetwork::new();
+        assert_eq!(core.sdf.subscription_count(), 0);
+        assert_eq!(core.sdf.published_count, 0);
     }
 
     #[test]
@@ -463,6 +478,44 @@ mod tests {
             FlowAction::Forwarded(grant.session_id),
             "known UE must be forwarded immediately without control-plane roundtrip"
         );
+    }
+
+    /// Option 3: SDF pub/sub — an ISAC event delivered via CoreNetwork.sdf.
+    #[test]
+    fn sdf_receives_isac_detection_event() {
+        let mut core = CoreNetwork::new();
+        let cell = NodeId(10);
+        core.sdf.subscribe(cell, Distance::from_m(500.0));
+
+        let event = DetectionEvent {
+            cell_id: cell,
+            range: Distance::from_m(200.0),
+            velocity: sixg_common::types::Velocity::from_m_per_s(30.0),
+            ue_id: None,
+        };
+        let delivered = core.sdf.publish(&event);
+        assert_eq!(delivered, 1, "one subscription must receive the ISAC event");
+        assert_eq!(core.sdf.published_count, 1);
+    }
+
+    /// Option 5: NRF capability discovery — SMF advertising SemanticSession is found.
+    #[test]
+    fn nrf_capability_discovery_finds_semantic_smf() {
+        let mut core = CoreNetwork::new();
+        core.nrf.register(NfProfile::with_capabilities(
+            NodeId(1),
+            NfType::Smf,
+            80,
+            vec![NfCapability::SemanticSession],
+        ));
+        core.nrf
+            .register(NfProfile::new(NodeId(2), NfType::Smf, 70));
+
+        let found = core
+            .nrf
+            .discover_by_capability(NfCapability::SemanticSession);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].instance_id, NodeId(1));
     }
 
     /// Option 4: NTN-aware AMF — UE registered via NTN node shows correct tracking area.

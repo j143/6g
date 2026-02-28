@@ -2,134 +2,172 @@
 
 ## Purpose
 
-The 6G Core Network handles control-plane signalling for registration, session management, policy, and network slicing. The current skeleton mirrors 5GC (AMF, SMF, UPF, PCF, NSSF), which is intentional as a starting baseline. Entry point: `CoreNetwork`.
+The 6G Core Network handles control-plane signalling for registration, session management, policy, and network slicing. It evolved from a 5GC baseline through five implementation phases to a full 6G-differentiating core. Entry point: `CoreNetwork`.
 
 ## Invariants
 
 <!-- Things that must ALWAYS be true, regardless of changes -->
 - `Amf` is the **only** component that authenticates UEs — no other NF performs authentication.
-- `RegistrationRecord` is created by `Amf::register()` and never mutated after creation.
+- `RegistrationRecord` tracks the UE's `TrackingArea` (Terrestrial or NTN); records are never mutated in place after creation.
 - `NetworkSlice` always has exactly one `SliceType` assigned at creation.
 - `Smf` always assigns a unique IP address per `PduSession`.
 - `Qci` values follow 3GPP TS 23.501 Table 5.7.4-1 standardized QoS characteristics.
 - `TrafficStats` counters are always cumulative (never reset mid-session).
 
-## Current Structure (5GC-derived baseline + Phase 5 gap-closure)
+## Current Structure (full 6G core, Phase 0–6)
 
 | NF | Key types | Role |
 |---|---|---|
-| **AMF** — Access and Mobility Management | `Amf`, `RegistrationRecord` | UE registration, deregistration, paging, tracking area management |
-| **SMF** — Session Management | `Smf`, `PduSession`, `PduSessionType` | PDU session establishment, IP allocation, and release |
-| **UPF** — User Plane | `Upf`, `TrafficStats` | Traffic forwarding; global + per-session bearer stats |
+| **AMF** — Access and Mobility Management | `Amf`, `RegistrationRecord`, `TrackingArea` | UE registration, deregistration, paging; **NTN-aware** tracking area (Terrestrial / NTN enum) |
+| **SMF** — Session Management | `Smf`, `PduSession`, `PduSessionType`, `GoalSpec` | PDU session establishment, IP allocation, release; **6G-new: `PduSessionType::Semantic(GoalSpec)`** |
+| **UPF** — User Plane | `Upf`, `TrafficStats`, `FlowAction` | Traffic forwarding; per-session bearer stats; **6G-new: `forward_semantic_uplink` + `forward_unknown_flow` (user-plane-first)** |
 | **PCF** — Policy Control | `Pcf`, `QosPolicy`, `Qci` | QoS policy rules (GBR/MBR/delay budget per slice); dynamic policy update |
 | **NSSF** — Network Slice Selection | `NetworkSliceSelector`, `NetworkSlice`, `SliceType` | Maps UE requests to slice identifiers; per-slice admission control |
 | **AUSF/UDM** — Auth Server + User Data Mgmt | `Ausf`, `Udm`, `SubscriberCredential`, `AuthVector` | Subscriber credential store + 5G-AKA conceptual auth vector derivation |
-| **NRF** — Network Repository Function | `Nrf`, `NfProfile`, `NfType` | NF discovery: register, deregister, discover by type (3GPP TS 29.510) |
+| **NRF** — Network Repository Function | `Nrf`, `NfProfile`, `NfType`, `NfCapability` | NF discovery: register, deregister, discover by type **and by capability** (3GPP TS 29.510 + 6G extension) |
+| **SDF** — Sensing Data Function | `SensingDataFunction`, `DetectionEvent`, `SensingSubscription` | **6G-new NF** (no 5G equivalent): exposes ISAC RAN sensing results as core SBI service; pub/sub per cell and range |
 
 ## What This Crate Does NOT Do
 
 - Does not implement the RAN PHY layer (no MAC, waveform, or channel model logic).
 - Does not implement the UE side of NAS — this is the network-side only.
-- Does not depend on `6g-phy`, `6g-mac`, or `6g-rlc`.
+- Does not depend on `6g-phy`, `6g-mac`, `6g-rlc`, or `6g-isac` (dep-graph enforced).
 - Does not implement a full NEF northbound API.
 
-## 6G Architectural Direction (Phase 4 — Implemented)
+## 6G Architectural Differentiators (Phase 6)
 
-Per Qualcomm's *Rethinking the Control Plane* paper:
+### Option 1 — Semantic Sessions (`smf.rs`, `upf.rs`)
 
-> 6G proposes a **user-plane-first** architecture where service access is driven by the data path, with the control plane as a thin adaptation layer. This collapses the multi-message NAS registration procedure into a streamlined data-path setup.
+`PduSessionType::Semantic(GoalSpec)` is the 4th PDU session type, unique to 6G. The QoS contract is expressed as a *task success rate*, not bandwidth/latency:
 
-### Service-Based Architecture v2 (`sba_v2.rs`)
+```rust
+let goal = GoalSpec {
+    task: SemanticTask::ImageClassification,
+    min_success_rate: TaskSuccessRate(0.90),   // 90% classification accuracy
+    max_bandwidth_reduction: BandwidthReduction(10.0), // ≤ 10% of raw bandwidth
+};
+core.establish_session(ue, SliceType::EMbb, PduSessionType::Semantic(goal));
+```
 
-Research hypothesis: replace the 5G NAS multi-message exchange (≥ 4 round trips: Registration Request → Authentication → Security Mode Command → Registration Accept) with a **single inline token exchange** embedded in the first data-path PDU.
+The UPF routes semantic sessions through `forward_semantic_uplink` which encodes the payload via `TextSemanticCodec` (~15× compression) rather than GTP-U forwarding. This makes `6g-semantic` load-bearing in the data path.
+
+**Reference**: Qin et al., *Semantic Communications: Principles and Challenges*, IEEE JSAC 2022.
+
+### Option 2 — User-Plane-First / Lazy Session Establishment (`upf.rs`)
+
+In 5G, the UE cannot send data until the control plane completes session setup (4+ round trips). In 6G, the UPF accepts packets before a session exists:
+
+```rust
+match upf.forward_unknown_flow(ue, payload) {
+    FlowAction::Forwarded(session_id) => { /* forwarded immediately */ }
+    FlowAction::TriggerEstablishment(ue) => {
+        // Session runner establishes the session in the background,
+        // then re-injects the buffered packet. No drop.
+    }
+}
+```
+
+`CoreNetwork::establish_session` calls `upf.register_session(session_id, ue)` so subsequent packets for the same UE are forwarded without control-plane involvement.
+
+**Reference**: Nokia Bell Labs, *User-Plane-First Architecture for 6G*, 2021.
+
+### Option 3 — SDF: Sensing Data Function (`sdf.rs`)
+
+A 6G-new NF with **no 5G equivalent**. Bridges ISAC RAN sensing results into the core as a subscription service:
+
+```rust
+// Application subscribes to detections from cell 1 within 500 m:
+core.sdf.subscribe(NodeId(1), Distance::from_m(500.0));
+
+// Session runner publishes after each ISAC radar sweep:
+let n_notified = core.sdf.publish(&DetectionEvent {
+    cell_id: NodeId(1),
+    range: Distance::from_m(200.0),
+    velocity: Velocity::from_m_per_s(30.0),
+    ue_id: Some(UeId(42)),
+});
+```
+
+The SDF does not depend on `6g-isac` directly — the session runner bridges them using `6g-common` types, preserving the dep-graph contract.
+
+**Reference**: 3GPP TR 22.837; Nokia Bell Labs *Sensing as a Service in 6G*, 2021.
+
+### Option 4 — NTN-Aware AMF (`amf.rs`)
+
+`TrackingArea` replaces the flat `u32` TAC:
+
+```rust
+// Terrestrial UE:
+core.register_ue(ue, 2001);  // backward-compat; uses TrackingArea::Terrestrial
+
+// NTN (LEO-served) UE:
+core.register_ue_ntn(ue, ntn_node_id: 42, beam_id: 3, Duration::from_ms(1.83));
+```
+
+`amf.ntn_ue_count()` and `amf.tracking_area(ue)` let the session runner pre-trigger handover before the satellite pass ends, using the NTN handover manager in `6g-ntn`.
+
+**Reference**: 3GPP TR 38.821; Nokia Bell Labs NTN Architecture White Paper, 2022.
+
+### Option 5 — NRF Capability Graph (`nrf.rs`)
+
+In 5G, NFs register by type. In 6G, NFs register **capabilities**:
+
+```rust
+nrf.register(NfProfile::with_capabilities(
+    NodeId(1), NfType::Smf, 80,
+    vec![NfCapability::SemanticSession, NfCapability::NtnHandover],
+));
+
+// Capability-based discovery — returns all active NFs supporting SemanticSession,
+// ordered by capacity desc:
+let smfs = nrf.discover_by_capability(NfCapability::SemanticSession);
+```
+
+`NfCapability` variants: `SubTHz`, `NtnHandover`, `SemanticSession`, `IsacProcessing`, `PostQuantumAuth`, `InNetworkAi`, `SensingExposure`.
+
+**Reference**: Nokia Bell Labs *6G SBA as a Knowledge Graph*, 2022.
+
+---
+
+## Service-Based Architecture v2 (`sba_v2.rs`)
+
+SBAv2 collapses ≥ 4 NAS round trips into 1 RTT via inline token auth:
 
 | Step | 5G NAS | SBAv2 |
 |---|---|---|
 | UE→AMF | Registration Request | First data PDU + `ServiceToken` |
 | AMF→AUSF | Authentication Request | (eliminated) |
-| AUSF→UDM | Auth Vector fetch | (eliminated) |
-| AMF→UE | Security Mode Command | (eliminated) |
-| AMF→UE | Registration Accept | Inline service grant |
 | **Round trips** | **≥ 4** | **1** |
 
-Key types: `ServiceToken` (16-byte pre-provisioned credential), `SbaV2Registry` (flat registry, no AUSF/UDM chain), `SbaRegistration` (record per UE), `SbaV2Validation` (`Validate` impl — checks round-trip count reduction and inline rejection logic).
+`CoreNetwork::register_ue(ue, tracking_area)` — SBAv2 1-RTT flow.  
+`CoreNetwork::register_ue_ntn(ue, ntn_node_id, beam_id, propagation_delay)` — NTN variant.
 
-`CoreNetwork` exposes two orchestrator methods that chain the NFs together:
+## `CoreNetwork` Orchestrator Methods
 
-- **`register_ue(ue, tracking_area) -> bool`** — SBAv2 inline token auth (1 RTT). Validates the token via `SbaV2Registry`, creates the AMF mobility record, and pushes a `DigitalTwin` snapshot.
-- **`establish_session(ue, slice, pdu_type) -> Option<SessionGrant>`** — Full NSSF → SMF → UPF → PCF chain. `SessionGrant` carries the allocated `session_id`, `ip_addr: Ipv4Addr`, `slice: SliceType`, `qci: u8`, and `gbr: Bitrate`.
+| Method | Description |
+|---|---|
+| `register_ue(ue, tac)` | SBAv2 1-RTT auth + AMF + DigitalTwin |
+| `register_ue_ntn(ue, ntn_node_id, beam_id, delay)` | NTN-aware variant |
+| `establish_session(ue, slice, pdu_type)` | NSSF→SMF→UPF→PCF chain; registers session in UPF for lazy lookup |
+| `release_session(session_id)` | SMF + UPF bearer teardown |
+| `deregister_ue(ue)` | Full AMF+SMF+UPF+SBAv2 teardown |
 
-#### `SessionGrant`
+## `GnbNode` — gNB proxy bridging RAN layers to the Core (`gnb.rs`)
 
-Return type of `CoreNetwork::establish_session()`. Bundles all parameters the UE and gNB need after a successful PDU session establishment:
+Wires `RrcLayer` and `PdcpEntity` to N2/N3 stubs calling `Amf` and `Upf`. Key methods: `attach(ue)`, `detach(ue)`, `forward_to_amf(ue, nas)`, `forward_uplink(payload, upf)`.
 
-| Field | Type | Description |
-|---|---|---|
-| `session_id` | `u8` | SMF-assigned session identifier |
-| `ip_addr` | `Ipv4Addr` | UPF-allocated address from `10.0.0.0/8` pool |
-| `slice` | `SliceType` | NSSF-selected network slice |
-| `qci` | `u8` | PCF QoS class (e.g. 80 for URLLC, 9 for eMBB) |
-| `gbr` | `Bitrate` | Guaranteed bit rate from the PCF policy |
+## NTN Handover (`crates/6g-ntn/src/handover.rs`)
 
-### `GnbNode` — gNB proxy bridging RAN layers to the Core (`gnb.rs`)
-
-A simulated gNB node that collapses the real RU/DU/CU split into a single struct for simulation purposes. It wires the existing `RrcLayer` (control plane) and `PdcpEntity` (user-plane header processing) to N2/N3 interface stubs that call into `Amf` and `Upf`.
-
-| Member | Type | Role |
-|---|---|---|
-| `node_id` | `NodeId` | Unique cell / TRP identifier |
-| `rrc` | `RrcLayer` | UE state machines (Idle / Inactive / Connected) |
-| `pdcp` | `PdcpEntity` (private) | Default DRB — SN + ROHC header compression |
-
-**Key methods:**
-
-| Method | Interface | Description |
-|---|---|---|
-| `attach(ue)` | RRC | Adds UE to `RrcLayer`, moves state to `Connected` |
-| `forward_to_amf(ue, nas)` | N2 | Returns NAS byte count; AMF called by session runner |
-| `forward_uplink(payload, upf)` | N3 | Runs PDCP `process_tx`, then calls `Upf::forward_uplink` |
-
-**Full call flow:**
-
-```
-UE(1)
- │  RRCSetupRequest
- ▼
-GnbNode::attach(ue_id)               → rrc.context.state = Connected  [6g-rrc]
- │  N2: NAS forward to AMF
- ▼
-Amf::register(ue_id)                 → RegistrationRecord stored      [6g-core/amf]
-Smf::establish_session(ue_id, Ip)    → PduSession assigned            [6g-core/smf]
- │
- │  === data plane ===
- │  UE sends 64-byte payload
- ▼
-GnbNode::forward_uplink(payload, upf)
-  └─ pdcp.process_tx(payload)        → ROHC compressed PDU            [6g-pdcp via 6g-rrc]
-  └─ upf.forward_uplink(&pdu)        → stats.bytes_uplink += len      [6g-core/upf]
-```
-
-
-
-The network maintains a real-time model of its own state via periodic snapshots:
-- `NetworkSnapshot` — captures all UE states (`UeSnapshot`) and per-slice load percentages.
-- `DigitalTwin::update()` — ingests a new snapshot and returns a `SnapshotDiff` (added/removed UEs, changed slice loads) against the previous state.
-- Change threshold: slice load changes < 1% are not reported (noise filter).
-- `DigitalTwinValidation` — `Validate` impl that verifies first-snapshot detection, sub-threshold noise filtering, removed-UE detection, and slice-load change detection.
-
-### NTN Handover (`crates/6g-ntn/src/handover.rs`)
-
-LEO → terrestrial handover manager. Trigger conditions:
-- Better terrestrial RSRP by ≥ 3 dB hysteresis.
-- LEO one-way propagation delay > 5 ms (nominal LEO at 550 km ≈ 1.83 ms).
-- Satellite elevation angle < 10°.
-
-## Current Scope
-
-The 5GC-derived NF stubs (AMF, SMF, UPF, PCF, NSSF) are retained as the 5G baseline reference. The Phase 4 SBAv2 registry (`SbaV2Registry`) and `DigitalTwin` operate alongside them in `CoreNetwork`.
+LEO → terrestrial handover manager. Trigger conditions: better terrestrial RSRP ≥ 3 dB, LEO delay > 5 ms, satellite elevation < 10°.
 
 ## References
 
-- 3GPP TS 23.501 (5GC system architecture — the baseline)
+- 3GPP TS 23.501 (5GC system architecture — baseline)
+- 3GPP TS 29.510 (NRF NF discovery service)
+- 3GPP TR 38.821 (NTN support for 5G)
+- 3GPP TR 22.837 (Integrated Sensing and Communication)
 - Qualcomm, *Rethinking the Control Plane* (6G Foundry Series)
-- ETSI ENI (Experiential Networked Intelligence) specifications
+- Nokia Bell Labs, *User-Plane-First Architecture for 6G* (2021)
+- Nokia Bell Labs, *6G SBA as a Knowledge Graph* (2022)
+- Nokia Bell Labs, *Sensing as a Service in 6G* (2021)
+- Qin et al., *Semantic Communications: Principles and Challenges*, IEEE JSAC 2022
