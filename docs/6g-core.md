@@ -51,6 +51,23 @@ Research hypothesis: replace the 5G NAS multi-message exchange (≥ 4 round trip
 
 Key types: `ServiceToken` (16-byte pre-provisioned credential), `SbaV2Registry` (flat registry, no AUSF/UDM chain), `SbaRegistration` (record per UE), `SbaV2Validation` (`Validate` impl — checks round-trip count reduction and inline rejection logic).
 
+`CoreNetwork` exposes two orchestrator methods that chain the NFs together:
+
+- **`register_ue(ue, tracking_area) -> bool`** — SBAv2 inline token auth (1 RTT). Validates the token via `SbaV2Registry`, creates the AMF mobility record, and pushes a `DigitalTwin` snapshot.
+- **`establish_session(ue, slice, pdu_type) -> Option<SessionGrant>`** — Full NSSF → SMF → UPF → PCF chain. `SessionGrant` carries the allocated `session_id`, `ip_addr: Ipv4Addr`, `slice: SliceType`, `qci: u8`, and `gbr: Bitrate`.
+
+#### `SessionGrant`
+
+Return type of `CoreNetwork::establish_session()`. Bundles all parameters the UE and gNB need after a successful PDU session establishment:
+
+| Field | Type | Description |
+|---|---|---|
+| `session_id` | `u8` | SMF-assigned session identifier |
+| `ip_addr` | `Ipv4Addr` | UPF-allocated address from `10.0.0.0/8` pool |
+| `slice` | `SliceType` | NSSF-selected network slice |
+| `qci` | `u8` | PCF QoS class (e.g. 80 for URLLC, 9 for eMBB) |
+| `gbr` | `Bitrate` | Guaranteed bit rate from the PCF policy |
+
 ### `GnbNode` — gNB proxy bridging RAN layers to the Core (`gnb.rs`)
 
 A simulated gNB node that collapses the real RU/DU/CU split into a single struct for simulation purposes. It wires the existing `RrcLayer` (control plane) and `PdcpEntity` (user-plane header processing) to N2/N3 interface stubs that call into `Amf` and `Upf`.

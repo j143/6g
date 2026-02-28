@@ -1,97 +1,153 @@
-//! Experiment 005 — End-to-End Core Session
+//! Experiment 005 — End-to-End Core Session (v2)
 //!
-//! Exercises the full 6G control + data plane in a single runnable binary:
+//! Exercises the full 6G control + data plane via the `CoreNetwork` orchestrator:
 //!
 //! ```text
-//! UE → GnbNode::attach()          → RRC state: Idle → Connected
-//! GnbNode::forward_to_amf()       → NAS byte count (N2 stub)
-//! Amf::register() + authenticate() → RegistrationRecord stored
-//! Smf::establish_session()         → PduSession ID assigned
-//! GnbNode::forward_uplink()        → PDCP → UPF bytes_uplink incremented
+//! UE → GnbNode::attach()                       RRC Idle → Connected
+//! CoreNetwork::register_ue()                   SBAv2 inline auth (1 RTT vs 5G's 4)
+//!   ├─ SbaV2Registry::register_with_token()    token validated inline
+//!   ├─ Amf::register() + authenticate()        mobility record stored
+//!   └─ DigitalTwin::update()                   snapshot #1 captured
+//! CoreNetwork::establish_session()             NSSF → SMF → UPF → PCF chain
+//!   ├─ NetworkSliceSelector::select(URLLC)     slice found
+//!   ├─ Smf::establish_session()                session_id + IP allocated
+//!   ├─ Smf::mark_upf_allocated()               UPF bearer confirmed
+//!   ├─ Pcf::add_policy(for_slice(URLLC))       QCI 80 policy bound
+//!   └─ DigitalTwin::update()                   snapshot #2 + diff
+//! GnbNode::forward_uplink() → Upf             PDCP → N3 → UPF bytes_uplink
 //! ```
 //!
-//! This is the `gnb_attach_and_uplink_flow` test from `gnb.rs` promoted to a
-//! runnable experiment so the flow is visible outside the test harness.
+//! Parameters are read from `experiments/exp_005_e2e_core_session/config.json`.
 //!
 //! Run with:
 //!   cargo run --example exp_005_e2e_core_session
 
+use serde::Deserialize;
 use sixg_common::types::{NodeId, UeId};
+use sixg_core::nssf::SliceType;
 use sixg_core::smf::PduSessionType;
-use sixg_core::{Amf, GnbNode, Smf, Upf};
+use sixg_core::{CoreNetwork, GnbNode};
+use sixg_rrc::RrcState;
+
+#[derive(Deserialize)]
+struct Config {
+    ue_id: u64,
+    gnb_node_id: u64,
+    tracking_area: u32,
+    user_data_bytes: usize,
+}
 
 fn main() {
     // -----------------------------------------------------------------------
-    // Entities
+    // Load configuration
     // -----------------------------------------------------------------------
-    let mut gnb = GnbNode::new(NodeId(1));
-    let mut amf = Amf::new();
-    let mut smf = Smf::new();
-    let mut upf = Upf::new();
-    let ue = UeId(42);
+    let config_path = "experiments/exp_005_e2e_core_session/config.json";
+    let config_str = std::fs::read_to_string(config_path).expect("config.json must be readable");
+    let cfg: Config = serde_json::from_str(&config_str).expect("config.json must parse");
 
-    println!("=== exp_005: End-to-End Core Session ===\n");
+    let ue = UeId(cfg.ue_id);
+
+    println!("=== exp_005: End-to-End Core Session (SBAv2 + Digital Twin) ===\n");
+    println!(
+        "Config: UE={ue:?}  gNB={:?}  TA={}  data={}B\n",
+        cfg.gnb_node_id, cfg.tracking_area, cfg.user_data_bytes
+    );
 
     // -----------------------------------------------------------------------
     // Step 1: RRC Attach — UE → gNB (RRCSetupRequest)
     // -----------------------------------------------------------------------
+    let mut gnb = GnbNode::new(NodeId(cfg.gnb_node_id));
     let ctx_idx = gnb.attach(ue);
     let state = &gnb.rrc.context(ctx_idx).unwrap().state;
-    println!("Step 1  RRC attach        UE={ue:?}  state={state:?}");
+    println!("[Step 1] RRC attach        UE={ue:?}  state={state:?}");
 
     // -----------------------------------------------------------------------
-    // Step 2: N2 NAS forward stub — gNB → AMF
+    // Step 2: SBAv2 registration — 1 RTT inline auth (vs 5G's ≥ 4 RTT)
     // -----------------------------------------------------------------------
-    let nas = b"ServiceToken:deadbeef";
-    let forwarded = gnb.forward_to_amf(ue, nas);
-    println!("Step 2  N2 NAS forward    bytes_forwarded={forwarded}  (stub)");
-
-    // -----------------------------------------------------------------------
-    // Step 3: AMF registration + authentication
-    // -----------------------------------------------------------------------
-    amf.register(ue, 1001);
-    amf.authenticate(ue);
+    let mut core = CoreNetwork::new();
+    let granted = core.register_ue(ue, cfg.tracking_area);
+    let snap1 = core.digital_twin.current().unwrap();
     println!(
-        "Step 3  AMF register      registered_ues={}",
-        amf.registered_ue_count()
+        "[Step 2] SBAv2 register    granted={granted}  amf_ues={}  twin_snaps={}",
+        core.amf.registered_ue_count(),
+        core.digital_twin.snapshot_count()
+    );
+    println!(
+        "         Digital Twin #1  ues_in_snap={}  slice_loads={:?}",
+        snap1.ues.len(),
+        snap1.slice_load_pct.values().collect::<Vec<_>>()
     );
 
     // -----------------------------------------------------------------------
-    // Step 4: SMF PDU session establishment
+    // Step 3: Establish PDU session — NSSF → SMF → UPF → PCF
     // -----------------------------------------------------------------------
-    let session_id = smf.establish_session(ue, PduSessionType::Ip);
+    let grant = core
+        .establish_session(ue, SliceType::Urllc, PduSessionType::Ip)
+        .expect("URLLC slice must be available");
+    let snap2 = core.digital_twin.current().unwrap();
     println!(
-        "Step 4  SMF session       session_id={session_id}  session_count={}",
-        smf.session_count()
+        "[Step 3] Session grant     session_id={}  ip={}  slice={:?}  qci={}  gbr={:.0}kbps",
+        grant.session_id,
+        grant.ip_addr,
+        grant.slice,
+        grant.qci,
+        grant.gbr.as_kbps()
+    );
+    println!(
+        "         Digital Twin #2  ues_in_snap={}  pdu_sessions={}",
+        snap2.ues.len(),
+        snap2.ues.values().map(|u| u.pdu_session_count).sum::<u8>()
+    );
+    println!(
+        "         UPF allocated    smf_all_upf={}  pcf_policies={}",
+        core.smf.all_upf_allocated(),
+        core.pcf.policy_count()
     );
 
     // -----------------------------------------------------------------------
-    // Step 5: Data plane — UE → gNB → PDCP → UPF
+    // Step 4: Data plane — UE → gNB → PDCP → UPF
     // -----------------------------------------------------------------------
-    let user_data = b"Hello 6G data network";
-    gnb.forward_uplink(user_data, &mut upf);
+    let user_data = vec![0xABu8; cfg.user_data_bytes];
+    gnb.forward_uplink(&user_data, &mut core.upf);
     println!(
-        "Step 5  Uplink data       payload_bytes={}  upf.bytes_uplink={}",
+        "[Step 4] Uplink forward    payload_bytes={}  upf.bytes_uplink={}",
         user_data.len(),
-        upf.stats.bytes_uplink
+        core.upf.stats.bytes_uplink
     );
 
     // -----------------------------------------------------------------------
-    // Assertions (same numerical checks as gnb_attach_and_uplink_flow test)
+    // Assertions
     // -----------------------------------------------------------------------
-    use sixg_rrc::RrcState;
+    assert!(granted, "SBAv2 token must be valid");
     assert_eq!(
         gnb.rrc.context(ctx_idx).unwrap().state,
         RrcState::Connected,
-        "UE must remain in Connected state"
+        "UE must remain Connected"
     );
-    assert_eq!(forwarded, nas.len(), "N2 stub must echo payload length");
-    assert_eq!(amf.registered_ue_count(), 1, "exactly one UE registered");
-    assert!(session_id > 0, "SMF must assign a non-zero session ID");
+    assert_eq!(
+        core.amf.registered_ue_count(),
+        1,
+        "exactly one UE registered"
+    );
+    assert_eq!(core.sba_v2.validated_ue_count(), 1, "one SBAv2 validation");
+    assert!(grant.session_id > 0, "session_id must be positive");
+    assert_eq!(grant.ip_addr.octets()[0], 10, "IP must be in 10.0.0.0/8");
+    assert_eq!(grant.qci, 80, "URLLC must be QCI 80");
+    assert!(core.smf.all_upf_allocated(), "UPF bearer must be allocated");
     assert!(
-        upf.stats.bytes_uplink > 0,
+        core.pcf.policy_count() > 0,
+        "PCF must have at least one policy"
+    );
+    assert_eq!(
+        core.digital_twin.snapshot_count(),
+        2,
+        "two snapshots: register + establish"
+    );
+    assert!(
+        core.upf.stats.bytes_uplink > 0,
         "UPF must have received at least one byte"
     );
 
     println!("\nAll exp_005 checks PASSED ✓");
+    println!("(6G: SBAv2 registration in 1 RTT vs 5G NAS ≥ 4 RTT)");
 }

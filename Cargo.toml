@@ -42,6 +42,8 @@ sixg-semantic = { path = "crates/6g-semantic" }
 sixg-core    = { path = "crates/6g-core" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [workspace]
 resolver = "2"

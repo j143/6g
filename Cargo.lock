@@ -162,6 +162,8 @@ dependencies = [
 name = "sixg"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "sixg-ai",
  "sixg-common",
  "sixg-core",

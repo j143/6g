@@ -55,6 +55,10 @@ Power, gain, or loss in decibels (dB or dBm depending on context). Covers path l
 
 Signal bandwidth in hertz (Hz). Constructors: `from_hz`, `from_mhz`, `from_ghz`. Accessor: `as_hz()`. Distinct from `Frequency` even though they share units — bandwidth is a spectral width, not a carrier position.
 
+### `Bitrate`
+
+Bit rate in bits per second (bps). Used at `pub fn` API boundaries wherever a physical bit/data rate is a parameter or return value — e.g. `QosPolicy.gbr` (guaranteed bit rate) and `QosPolicy.max_br` (maximum bit rate) in `6g-core/pcf.rs`, and `UeSnapshot.dl_throughput` in `digital_twin.rs`. Constructors: `from_bps`, `from_kbps`, `from_mbps`, `from_gbps`. Accessors: `as_bps()`, `as_kbps()`, `as_mbps()`, `as_gbps()`.
+
 ### `Velocity`
 
 Velocity in metres per second (m/s). Used in Doppler shift calculations in `6g-isac/detection.rs`. Constructor: `Velocity::from_m_per_s(x)`. Accessor: `as_m_per_s()`.

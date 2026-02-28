@@ -59,6 +59,11 @@ impl Amf {
     pub fn registered_ue_count(&self) -> usize {
         self.registrations.len()
     }
+
+    /// Borrow all registration records — used by `CoreNetwork::push_snapshot()`.
+    pub fn registrations(&self) -> &[RegistrationRecord] {
+        &self.registrations
+    }
 }
 
 impl Default for Amf {

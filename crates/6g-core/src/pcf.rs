@@ -7,6 +7,8 @@
 
 use sixg_common::types::Bitrate;
 
+use crate::nssf::SliceType;
+
 /// QoS class identifier — maps to 3GPP TS 23.501 Table 5.7.4-1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Qci(pub u8);
@@ -22,6 +24,8 @@ pub struct QosPolicy {
     pub max_br: Bitrate,
     /// Packet Delay Budget in milliseconds.
     pub delay_budget_ms: u32,
+    /// Network slice this policy is bound to (`None` = generic / unbound).
+    pub slice_type: Option<SliceType>,
 }
 
 impl QosPolicy {
@@ -35,6 +39,7 @@ impl QosPolicy {
             gbr: Bitrate::from_mbps(100.0),
             max_br: Bitrate::from_gbps(1.0),
             delay_budget_ms: 1,
+            slice_type: Some(SliceType::Urllc),
         }
     }
 
@@ -48,6 +53,43 @@ impl QosPolicy {
             gbr: Bitrate::from_bps(0.0),
             max_br: Bitrate::from_gbps(100.0),
             delay_budget_ms: 100,
+            slice_type: Some(SliceType::EMbb),
+        }
+    }
+
+    /// Return the default policy for a given slice type.
+    ///
+    /// Maps each [`SliceType`] to a sensible QCI and rate profile:
+    /// - `Urllc`      → QCI 80, 100 Mbps GBR, 1 ms delay budget  
+    /// - `EMbb`       → QCI 9,  non-GBR, 100 Gbps max, 100 ms  
+    /// - `MMtc`       → QCI 70, 1 kbps GBR, 1 000 ms delay budget  
+    /// - `Sensing`    → QCI 65, 10 Mbps GBR, 5 ms delay budget  
+    /// - `NtnBackhaul`→ QCI 5,  non-GBR, 10 Gbps max, 600 ms
+    pub fn for_slice(slice: SliceType) -> Self {
+        match slice {
+            SliceType::Urllc => Self::urllc(),
+            SliceType::EMbb => Self::embb(),
+            SliceType::MMtc => Self {
+                qci: Qci(70),
+                gbr: Bitrate::from_kbps(1.0),
+                max_br: Bitrate::from_mbps(1.0),
+                delay_budget_ms: 1_000,
+                slice_type: Some(SliceType::MMtc),
+            },
+            SliceType::Sensing => Self {
+                qci: Qci(65),
+                gbr: Bitrate::from_mbps(10.0),
+                max_br: Bitrate::from_mbps(500.0),
+                delay_budget_ms: 5,
+                slice_type: Some(SliceType::Sensing),
+            },
+            SliceType::NtnBackhaul => Self {
+                qci: Qci(5),
+                gbr: Bitrate::from_bps(0.0),
+                max_br: Bitrate::from_gbps(10.0),
+                delay_budget_ms: 600,
+                slice_type: Some(SliceType::NtnBackhaul),
+            },
         }
     }
 }
@@ -72,6 +114,11 @@ impl Pcf {
     /// Number of policies currently registered.
     pub fn policy_count(&self) -> usize {
         self.policies.len()
+    }
+
+    /// Return the policy bound to a specific slice type, if any.
+    pub fn policy_for_slice(&self, slice: SliceType) -> Option<&QosPolicy> {
+        self.policies.iter().find(|p| p.slice_type == Some(slice))
     }
 }
 

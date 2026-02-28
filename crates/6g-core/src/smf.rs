@@ -81,6 +81,37 @@ impl Smf {
             .find(|s| s.session_id == session_id)
             .map(|s| s.ip_addr)
     }
+
+    /// Mark a PDU session as having a UPF bearer allocated.
+    ///
+    /// Called by `CoreNetwork::establish_session()` after the UPF accepts
+    /// the session, satisfying the SMF ↔ UPF invariant.
+    pub fn mark_upf_allocated(&mut self, session_id: u8) {
+        if let Some(s) = self
+            .sessions
+            .iter_mut()
+            .find(|s| s.session_id == session_id)
+        {
+            let updated = PduSession {
+                session_id: s.session_id,
+                ue: s.ue,
+                session_type: s.session_type,
+                ip_addr: s.ip_addr,
+                upf_allocated: true,
+            };
+            *s = updated;
+        }
+    }
+
+    /// Number of active sessions for a given UE.
+    pub fn session_count_for_ue(&self, ue: UeId) -> usize {
+        self.sessions.iter().filter(|s| s.ue == ue).count()
+    }
+
+    /// Returns `true` when all registered sessions have a UPF bearer allocated.
+    pub fn all_upf_allocated(&self) -> bool {
+        self.sessions.iter().all(|s| s.upf_allocated)
+    }
 }
 
 impl Default for Smf {
