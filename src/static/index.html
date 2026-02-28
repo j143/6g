@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>6G System Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif;
+           background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    a { color: #60a5fa; }
+    .badge-ok   { background:#16a34a; color:#fff; border-radius:4px; padding:1px 8px; font-size:.75rem; }
+    .badge-pend { background:#ca8a04; color:#fff; border-radius:4px; padding:1px 8px; font-size:.75rem; }
+    .mermaid svg { max-width:100%; }
+    pre, code { white-space:pre-wrap; word-break:break-all; }
+    .card { background:#1e293b; border-radius:.75rem; border:1px solid #334155;
+            padding:1.25rem; box-shadow:0 4px 6px rgba(0,0,0,.4); }
+    .grid-3   { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:1.25rem; }
+    .grid-stat{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:1.25rem; margin-bottom:2rem; }
+    table { width:100%; border-collapse:collapse; font-size:.875rem; }
+    th,td { text-align:left; padding:.5rem .75rem; }
+    th { color:#94a3b8; border-bottom:1px solid #475569; }
+    tr:not(:last-child) td { border-bottom:1px solid #1e293b; }
+  </style>
+  <script>
+    window.addEventListener('load', function() {
+      if (typeof mermaid !== 'undefined') {
+        mermaid.initialize({ startOnLoad: true, theme: 'base',
+          themeVariables: { primaryColor:'#1e40af', primaryTextColor:'#fff',
+            primaryBorderColor:'#1d4ed8', lineColor:'#6b7280',
+            secondaryColor:'#0f172a', tertiaryColor:'#1e293b' } });
+      } else {
+        ['arch-fallback','seq-fallback','xy-fallback'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = 'block';
+        });
+      }
+    });
+  </script>
+</head>
+<body style="background:#0f172a;color:#e2e8f0;">
+
+<!-- Header -->
+<header style="background:#020617;border-bottom:1px solid #374151;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem;">
+  <span style="font-size:2rem;">📡</span>
+  <div>
+    <h1 style="font-size:1.5rem;font-weight:700;color:#fff;">6G System Dashboard</h1>
+    <p style="font-size:.875rem;color:#9ca3af;">Experimental 6G simulation stack · Rust workspace</p>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:.75rem;">
+    <a href="/api/status"
+       style="padding:.5rem 1rem;border-radius:.5rem;background:#1d4ed8;color:#fff;font-size:.875rem;text-decoration:none;">
+      Status JSON
+    </a>
+    <a href="/api/experiments"
+       style="padding:.5rem 1rem;border-radius:.5rem;background:#4338ca;color:#fff;font-size:.875rem;text-decoration:none;">
+      Experiments JSON
+    </a>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav style="background:#0f172a;border-bottom:1px solid #374151;padding:.5rem 1.5rem 0;display:flex;gap:.25rem;">
+  <button onclick="showTab('overview')"    class="tab-btn active" id="tab-overview">Overview</button>
+  <button onclick="showTab('arch')"        class="tab-btn"        id="tab-arch">Architecture</button>
+  <button onclick="showTab('modules')"     class="tab-btn"        id="tab-modules">Modules</button>
+  <button onclick="showTab('experiments')" class="tab-btn"        id="tab-experiments">Experiments</button>
+  <button onclick="showTab('stack')"       class="tab-btn"        id="tab-stack">Stack Flow</button>
+</nav>
+<style>
+  .tab-btn { padding:8px 18px; border-radius:8px 8px 0 0; font-size:.875rem; font-weight:500;
+             cursor:pointer; border:none; background:transparent; color:#9ca3af; transition:all .15s; }
+  .tab-btn:hover { color:#e5e7eb; background:rgba(255,255,255,.05); }
+  .tab-btn.active { color:#fff; background:#1e3a8a; border-bottom:2px solid #3b82f6; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+</style>
+
+<!-- Main -->
+<main style="padding:2rem 1.5rem;max-width:1280px;margin:0 auto;">
+
+  <!-- OVERVIEW -->
+  <section id="pane-overview" class="tab-content active">
+    <div class="grid-stat">
+      <div class="card">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🟢</div>
+        <div style="font-weight:600;">All Subsystems</div>
+        <div style="color:#4ade80;font-size:.875rem;margin-top:.25rem;">Online</div>
+      </div>
+      <div class="card">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🔬</div>
+        <div style="font-weight:600;">Experiments</div>
+        <div id="exp-count" style="color:#60a5fa;font-size:.875rem;margin-top:.25rem;">7 available</div>
+      </div>
+      <div class="card">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">📶</div>
+        <div style="font-weight:600;">Frequency Band</div>
+        <div id="freq-band" style="color:#c084fc;font-size:.875rem;margin-top:.25rem;">Loading…</div>
+      </div>
+      <div class="card">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">👥</div>
+        <div style="font-weight:600;">Max UEs</div>
+        <div id="max-ues" style="color:#fb923c;font-size:.875rem;margin-top:.25rem;">Loading…</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:1.25rem;font-weight:700;margin-bottom:1rem;">Quick Reference — 6G Stack</h2>
+      <table>
+        <thead><tr><th>Layer</th><th>Crate</th><th>Key Features</th></tr></thead>
+        <tbody id="quick-table">
+          <tr><td colspan="3" style="color:#64748b;padding:1rem 0;">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="pane-arch" class="tab-content">
+    <div class="card">
+      <h2 style="font-size:1.25rem;font-weight:700;margin-bottom:1rem;">6G Protocol Stack — Architecture Diagram</h2>
+      <div class="mermaid">
+flowchart TD
+    UE([🖥 User Equipment]) --> PHY
+    PHY["📡 PHY\nTHz/Sub-THz · Holographic MIMO · RIS\nOFDM · OTFS · AI waveform"] --> MAC
+    MAC["⚙️ MAC\nAI Q-learning scheduler · HARQ\nOFDMA / NOMA / RSMA"] --> RLC
+    RLC["🔗 RLC\nSegmentation · ARQ · TM/UM/AM"] --> PDCP
+    PDCP["🔒 PDCP\nROHC compression · Ciphering"] --> RRC
+    RRC["📋 RRC\nConnection mgmt · SIBs · Mobility\nInactive state"] --> CORE
+    CORE["🏛 6G Core\nAMF+ · SMF+ · UPF+ · PCF\nNSSF · AUSF/UDM · NRF · SDF"]
+    AI["🤖 AI Engine\nChannel est · LS/MMSE/MLP\nModel trait & inference"]
+    ISAC["🔍 ISAC\nDFRC · OTFS-ISAC\nCRB / Shannon · Pareto"]
+    NTN["🛰 NTN\nLEO · HAPS · UAV\nHandover & propagation"]
+    SEM["💬 Semantic\nSemantic codec\nGoal-oriented · SSIM"]
+    AI -.-> PHY
+    AI -.-> MAC
+    ISAC -.-> PHY
+    NTN -.-> CORE
+    SEM -.-> CORE
+    classDef layer fill:#1e3a8a,stroke:#3b82f6,color:#fff
+    classDef cross fill:#064e3b,stroke:#10b981,color:#fff
+    classDef ue fill:#1c1917,stroke:#78716c,color:#e7e5e4
+    class PHY,MAC,RLC,PDCP,RRC,CORE layer
+    class AI,ISAC,NTN,SEM cross
+    class UE ue
+      </div>
+      <pre id="arch-fallback" style="display:none;font-size:.8rem;color:#94a3b8;line-height:1.8;margin-top:1rem;padding:1rem;background:#020617;border-radius:.5rem;">
+  UE → PHY (THz/Sub-THz, MIMO, RIS, OTFS)
+       ↓
+      MAC (AI scheduler, HARQ, NOMA/RSMA)
+       ↓
+      RLC (Segmentation, ARQ, AM/UM/TM)
+       ↓
+      PDCP (ROHC, Ciphering, Integrity)
+       ↓
+      RRC (Connection mgmt, SIBs, Mobility)
+       ↓
+  6G Core (AMF+ · SMF+ · UPF+ · PCF · NRF · SDF)
+
+  Cross-cutting: AI Engine · ISAC · NTN · Semantic
+      </pre>
+    </div>
+  </section>
+
+  <!-- MODULES -->
+  <section id="pane-modules" class="tab-content">
+    <div class="grid-3" id="module-cards">
+      <div class="card"><p style="color:#64748b;">Loading modules…</p></div>
+    </div>
+  </section>
+
+  <!-- EXPERIMENTS -->
+  <section id="pane-experiments" class="tab-content">
+    <div style="display:flex;flex-direction:column;gap:1rem;" id="exp-list">
+      <p style="color:#64748b;">Loading experiments…</p>
+    </div>
+  </section>
+
+  <!-- STACK FLOW -->
+  <section id="pane-stack" class="tab-content">
+    <div class="card">
+      <h2 style="font-size:1.25rem;font-weight:700;margin-bottom:1rem;">Data-Plane Packet Flow</h2>
+      <div class="mermaid">
+sequenceDiagram
+    participant UE   as 🖥 UE
+    participant PHY  as 📡 PHY
+    participant MAC  as ⚙️ MAC
+    participant RLC  as 🔗 RLC
+    participant PDCP as 🔒 PDCP
+    participant RRC  as 📋 RRC
+    participant CORE as 🏛 6GC
+    UE->>PHY:  Radio signal (THz/Sub-THz)
+    PHY->>MAC: Decoded TB + CQI
+    Note over PHY,MAC: OFDM/OTFS demod · RIS phase update
+    MAC->>RLC: PDU after HARQ ack
+    Note over MAC,RLC: AI scheduler · NOMA SIC
+    RLC->>PDCP: Reassembled SDU
+    PDCP->>RRC: Deciphered + decompressed
+    RRC->>CORE: NAS message (N2/N3)
+    CORE-->>RRC: Session Accept / Bearer config
+    RRC-->>PDCP: Security config
+    PDCP-->>RLC: AM ready
+    RLC-->>MAC: Status report
+    MAC-->>PHY: DL scheduling grant
+    PHY-->>UE:  DL transmission
+      </div>
+      <pre id="seq-fallback" style="display:none;font-size:.8rem;color:#94a3b8;line-height:1.8;margin-top:1rem;padding:1rem;background:#020617;border-radius:.5rem;">
+  UE ──► PHY  : Radio signal (THz/Sub-THz)
+  PHY ──► MAC : Decoded TB + CQI
+  MAC ──► RLC : PDU after HARQ ack
+  RLC ──► PDCP: Reassembled SDU
+  PDCP ──► RRC: Deciphered + decompressed
+  RRC ──► CORE: NAS message (N2/N3)
+  CORE ──► RRC: Session Accept / Bearer config
+      </pre>
+    </div>
+    <div class="card" style="margin-top:1.5rem;">
+      <h2 style="font-size:1.25rem;font-weight:700;margin-bottom:1rem;">ISAC Sensing/Communication Trade-off</h2>
+      <div class="mermaid">
+xychart-beta
+    title "DFRC Pareto Frontier (SNR=20 dB, BW=1 GHz)"
+    x-axis "Sensing ratio α" [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    y-axis "Capacity (Gbps)" 0 --> 10
+    line [9.97, 9.73, 9.47, 9.17, 8.83, 8.45, 8.02, 7.52, 6.94, 6.25, 5.39]
+      </div>
+      <pre id="xy-fallback" style="display:none;font-size:.8rem;color:#94a3b8;line-height:1.8;margin-top:1rem;padding:1rem;background:#020617;border-radius:.5rem;">
+  α=0.0 → 9.97 Gbps  |  α=0.5 → 8.45 Gbps  |  α=1.0 → 5.39 Gbps
+  Run: cargo run --example exp_001_dfrc_pareto_frontier
+      </pre>
+    </div>
+  </section>
+
+</main>
+
+<!-- Footer -->
+<footer style="border-top:1px solid #374151;padding:1rem 1.5rem;text-align:center;color:#64748b;font-size:.875rem;">
+  6G Experimental Stack · Apache-2.0 ·
+  <a href="https://github.com/j143/6g">github.com/j143/6g</a>
+</footer>
+
+<script>
+var hasMermaid = typeof mermaid !== 'undefined';
+if (!hasMermaid) {
+  document.querySelectorAll('.mermaid').forEach(function(el) { el.style.display = 'none'; });
+  ['arch-fallback','seq-fallback','xy-fallback'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.style.display = 'block';
+  });
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(el)     { el.classList.remove('active'); });
+  document.getElementById('pane-' + name).classList.add('active');
+  document.getElementById('tab-'  + name).classList.add('active');
+  if (hasMermaid && (name === 'arch' || name === 'stack')) mermaid.run();
+}
+
+async function loadStatus() {
+  try {
+    const d = await (await fetch('/api/status')).json();
+    document.getElementById('freq-band').textContent = d.config?.frequency_band ?? '—';
+    document.getElementById('max-ues').textContent   = (d.config?.max_ues ?? 0).toLocaleString() || '—';
+    document.getElementById('quick-table').innerHTML = d.modules.map(function(m) {
+      return '<tr>'
+        + '<td style="font-weight:600;color:#f1f5f9;">' + m.layer + '</td>'
+        + '<td style="font-family:monospace;color:#93c5fd;font-size:.75rem;">' + m.crate_name + '</td>'
+        + '<td style="color:#cbd5e1;font-size:.8rem;">' + m.features + '</td>'
+        + '</tr>';
+    }).join('');
+    document.getElementById('module-cards').innerHTML = d.modules.map(function(m) {
+      var badge = m.status === 'online'
+        ? '<span class="badge-ok">✓ Online</span>'
+        : '<span class="badge-pend">⏳ Pending</span>';
+      return '<div class="card">'
+        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.5rem;">'
+        + '<span style="font-size:1.75rem;">' + m.icon + '</span>' + badge + '</div>'
+        + '<h3 style="font-weight:600;color:#f1f5f9;">' + m.layer + '</h3>'
+        + '<p style="font-family:monospace;color:#93c5fd;font-size:.75rem;margin-bottom:.5rem;">' + m.crate_name + '</p>'
+        + '<p style="color:#94a3b8;font-size:.875rem;">' + m.features + '</p>'
+        + '</div>';
+    }).join('');
+  } catch(e) { console.error('status load failed', e); }
+}
+
+async function loadExperiments() {
+  try {
+    const d = await (await fetch('/api/experiments')).json();
+    document.getElementById('exp-count').textContent = d.experiments.length + ' available';
+    document.getElementById('exp-list').innerHTML = d.experiments.map(function(e) {
+      return '<div class="card">'
+        + '<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;">'
+        + '<span style="font-size:1.75rem;">' + e.icon + '</span>'
+        + '<div><h3 style="font-weight:600;color:#f1f5f9;">' + e.name + '</h3>'
+        + '<p style="font-family:monospace;font-size:.75rem;color:#c084fc;">' + e.id + '</p></div>'
+        + '<span style="margin-left:auto;font-size:.75rem;padding:.25rem .5rem;border-radius:.25rem;'
+        + 'background:#1e293b;color:#94a3b8;border:1px solid #334155;">' + e.crate_name + '</span></div>'
+        + '<p style="color:#cbd5e1;font-size:.875rem;margin-bottom:.75rem;">' + e.description + '</p>'
+        + '<code style="display:block;background:#020617;border-radius:.375rem;padding:.5rem .75rem;'
+        + 'font-size:.75rem;color:#86efac;font-family:monospace;border:1px solid #1e3a8a;">'
+        + 'cargo run --example ' + e.id + '</code>'
+        + '</div>';
+    }).join('');
+  } catch(e) { console.error('experiments load failed', e); }
+}
+
+loadStatus();
+loadExperiments();
+</script>
+</body>
+</html>

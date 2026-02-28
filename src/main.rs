@@ -3,11 +3,18 @@
 //! This binary wires together the major subsystems of the 6G stack:
 //! PHY → MAC → RLC → PDCP → RRC → Core, alongside the AI engine,
 //! ISAC, NTN and Semantic communications layers.
+//!
+//! # Flags
+//! * `--ui`           — start the web dashboard (default port 3000)
+//! * `--port <PORT>`  — set the dashboard TCP port (implies `--ui`)
+
+mod dashboard;
 
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
         .init();
@@ -66,4 +73,20 @@ fn main() {
 
     // Prevent unused-variable warnings while the layers are stubs.
     let _ = (phy, mac, rlc, pdcp, rrc, isac, ai, ntn, sem, core);
+
+    // --- Optional web dashboard ----------------------------------------------
+    let args: Vec<String> = std::env::args().collect();
+    let ui_flag = args.iter().any(|a| a == "--ui");
+    let port: u16 = args
+        .windows(2)
+        .find(|w| w[0] == "--port")
+        .and_then(|w| w[1].parse().ok())
+        .unwrap_or(3000);
+
+    if ui_flag || port != 3000 {
+        info!("Starting web dashboard on port {port}…");
+        if let Err(e) = dashboard::run(port).await {
+            tracing::error!("Dashboard error: {e}");
+        }
+    }
 }
