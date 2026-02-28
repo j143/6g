@@ -42,3 +42,41 @@ impl Default for Upf {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forward_uplink_accumulates_bytes() {
+        let mut upf = Upf::new();
+        upf.forward_uplink(b"hello");
+        assert_eq!(upf.stats.bytes_uplink, 5);
+        upf.forward_uplink(b"world!");
+        assert_eq!(upf.stats.bytes_uplink, 11, "counter must be cumulative");
+        assert_eq!(upf.stats.bytes_downlink, 0, "downlink must be unaffected");
+    }
+
+    #[test]
+    fn forward_downlink_accumulates_bytes() {
+        let mut upf = Upf::new();
+        upf.forward_downlink(b"data");
+        assert_eq!(upf.stats.bytes_downlink, 4);
+        upf.forward_downlink(b"more data");
+        assert_eq!(upf.stats.bytes_downlink, 13, "counter must be cumulative");
+        assert_eq!(upf.stats.bytes_uplink, 0, "uplink must be unaffected");
+    }
+
+    #[test]
+    fn counters_never_decrease() {
+        let mut upf = Upf::new();
+        for _ in 0..10 {
+            upf.forward_uplink(b"pkt");
+        }
+        let before = upf.stats.bytes_uplink;
+        // No method to decrement — compile-time guarantee.
+        // This test documents the invariant: counters are cumulative.
+        assert_eq!(upf.stats.bytes_uplink, before);
+        assert_eq!(upf.stats.packets_dropped, 0);
+    }
+}

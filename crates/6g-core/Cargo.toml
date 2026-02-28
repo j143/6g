@@ -6,9 +6,5 @@ license.workspace = true
 
 [dependencies]
 sixg-common  = { path = "../6g-common" }
-sixg-ntn     = { path = "../6g-ntn" }
-sixg-semantic = { path = "../6g-semantic" }
 sixg-rrc     = { path = "../6g-rrc" }
-thiserror.workspace = true
 serde.workspace = true
-tokio.workspace = true

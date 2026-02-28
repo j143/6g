@@ -15,7 +15,7 @@
 
 use std::collections::HashMap;
 
-use sixg_common::types::UeId;
+use sixg_common::types::{Bitrate, UeId};
 use sixg_common::validation::{Validate, ValidationCheck, ValidationResult};
 
 /// State of a single UE captured in a network snapshot.
@@ -25,8 +25,8 @@ pub struct UeSnapshot {
     pub ue: UeId,
     /// Number of active PDU sessions.
     pub pdu_session_count: u8,
-    /// Estimated downlink throughput in Mbps.
-    pub dl_throughput_mbps: f64,
+    /// Estimated downlink throughput.
+    pub dl_throughput: Bitrate,
 }
 
 /// Full network state captured at one instant.
@@ -179,7 +179,7 @@ impl Validate for DigitalTwinValidation {
         s1.add_ue(UeSnapshot {
             ue: UeId(1),
             pdu_session_count: 1,
-            dl_throughput_mbps: 100.0,
+            dl_throughput: Bitrate::from_mbps(100.0),
         });
         s1.set_slice_load(1, 20.0);
         let diff1 = twin.update(s1);
@@ -189,7 +189,7 @@ impl Validate for DigitalTwinValidation {
         s2.add_ue(UeSnapshot {
             ue: UeId(1),
             pdu_session_count: 1,
-            dl_throughput_mbps: 100.0,
+            dl_throughput: Bitrate::from_mbps(100.0),
         });
         s2.set_slice_load(1, 20.5); // 0.5 % change — below 1 % threshold
         let diff2 = twin.update(s2);
@@ -242,7 +242,7 @@ mod tests {
         s1.add_ue(UeSnapshot {
             ue: UeId(10),
             pdu_session_count: 2,
-            dl_throughput_mbps: 200.0,
+            dl_throughput: Bitrate::from_mbps(200.0),
         });
         s1.set_slice_load(1, 40.0);
         twin.update(s1);
@@ -251,7 +251,7 @@ mod tests {
         s2.add_ue(UeSnapshot {
             ue: UeId(10),
             pdu_session_count: 2,
-            dl_throughput_mbps: 200.0,
+            dl_throughput: Bitrate::from_mbps(200.0),
         });
         s2.set_slice_load(1, 40.0);
         let diff = twin.update(s2);
@@ -268,7 +268,7 @@ mod tests {
         s2.add_ue(UeSnapshot {
             ue: UeId(5),
             pdu_session_count: 1,
-            dl_throughput_mbps: 50.0,
+            dl_throughput: Bitrate::from_mbps(50.0),
         });
         let diff = twin.update(s2);
 
@@ -283,7 +283,7 @@ mod tests {
         s1.add_ue(UeSnapshot {
             ue: UeId(7),
             pdu_session_count: 1,
-            dl_throughput_mbps: 10.0,
+            dl_throughput: Bitrate::from_mbps(10.0),
         });
         twin.update(s1);
 

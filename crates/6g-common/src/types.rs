@@ -194,6 +194,63 @@ pub struct BearerId(pub u8);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SliceId(pub u16);
 
+/// Bit rate in bits per second (bps).
+///
+/// Use the convenience constructors (`from_kbps`, `from_mbps`, `from_gbps`) so
+/// that call sites are self-documenting.  Internal representation is bps stored
+/// as `f64`.
+///
+/// # Examples
+/// ```
+/// use sixg_common::types::Bitrate;
+/// let r = Bitrate::from_mbps(100.0); // 100 Mbps downlink
+/// assert!((r.as_kbps() - 100_000.0).abs() < 1.0);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Bitrate(f64); // bits per second
+
+impl Bitrate {
+    /// Create a `Bitrate` from a value in bits per second.
+    pub fn from_bps(bps: f64) -> Self {
+        Self(bps)
+    }
+
+    /// Create a `Bitrate` from a value in kilobits per second (kbps).
+    pub fn from_kbps(kbps: f64) -> Self {
+        Self(kbps * 1_000.0)
+    }
+
+    /// Create a `Bitrate` from a value in megabits per second (Mbps).
+    pub fn from_mbps(mbps: f64) -> Self {
+        Self(mbps * 1_000_000.0)
+    }
+
+    /// Create a `Bitrate` from a value in gigabits per second (Gbps).
+    pub fn from_gbps(gbps: f64) -> Self {
+        Self(gbps * 1_000_000_000.0)
+    }
+
+    /// Return the bit rate in bits per second.
+    pub fn as_bps(self) -> f64 {
+        self.0
+    }
+
+    /// Return the bit rate in kilobits per second.
+    pub fn as_kbps(self) -> f64 {
+        self.0 / 1_000.0
+    }
+
+    /// Return the bit rate in megabits per second.
+    pub fn as_mbps(self) -> f64 {
+        self.0 / 1_000_000.0
+    }
+
+    /// Return the bit rate in gigabits per second.
+    pub fn as_gbps(self) -> f64 {
+        self.0 / 1_000_000_000.0
+    }
+}
+
 /// A raw byte payload.
 pub type Payload = Vec<u8>;
 
@@ -276,5 +333,19 @@ mod tests {
     fn snr_linear_round_trip() {
         let s = SnrLinear::new(100.0);
         assert!((s.as_linear() - 100.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn bitrate_round_trips() {
+        let r = Bitrate::from_mbps(100.0);
+        assert!((r.as_mbps() - 100.0).abs() < 1e-6, "Mbps round-trip");
+        assert!((r.as_kbps() - 100_000.0).abs() < 0.1, "kbps from Mbps");
+        assert!((r.as_gbps() - 0.1).abs() < 1e-9, "Gbps from Mbps");
+
+        let zero = Bitrate::from_kbps(0.0);
+        assert_eq!(zero.as_bps(), 0.0, "zero bitrate");
+
+        let gbps = Bitrate::from_gbps(1.0);
+        assert!((gbps.as_mbps() - 1_000.0).abs() < 1e-3, "Gbps to Mbps");
     }
 }

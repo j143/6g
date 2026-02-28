@@ -40,9 +40,19 @@ impl Amf {
     }
 
     /// Mark a UE as authenticated.
+    ///
+    /// Replaces the existing [`RegistrationRecord`] with a new one that has
+    /// `authenticated = true`, preserving the invariant that a record is never
+    /// mutated in place after creation.
     pub fn authenticate(&mut self, ue: UeId) {
-        if let Some(r) = self.registrations.iter_mut().find(|r| r.ue == ue) {
-            r.authenticated = true;
+        if let Some(pos) = self.registrations.iter().position(|r| r.ue == ue) {
+            let old = &self.registrations[pos];
+            let updated = RegistrationRecord {
+                ue: old.ue,
+                tracking_area: old.tracking_area,
+                authenticated: true,
+            };
+            self.registrations[pos] = updated;
         }
     }
 

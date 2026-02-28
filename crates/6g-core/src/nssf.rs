@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use sixg_common::types::SliceId;
+
 /// Standardised Slice/Service Type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SliceType {
@@ -29,6 +31,13 @@ pub struct NetworkSlice {
     pub s_nssai: u32,
     /// Maximum number of UEs admitted to this slice.
     pub max_ues: usize,
+}
+
+impl NetworkSlice {
+    /// Return the [`SliceId`] corresponding to this slice's S-NSSAI.
+    pub fn slice_id(&self) -> SliceId {
+        SliceId(self.s_nssai as u16)
+    }
 }
 
 /// Network Slice Selection Function.
@@ -91,5 +100,26 @@ mod tests {
         let s = nssf.select(SliceType::Urllc);
         assert!(s.is_some());
         assert_eq!(s.unwrap().s_nssai, 2);
+    }
+
+    #[test]
+    fn slice_id_matches_s_nssai() {
+        let nssf = NetworkSliceSelector::new();
+        // EMbb = s_nssai 1, Urllc = 2, MMtc = 3, Sensing = 4
+        let cases = [
+            (SliceType::EMbb, 1u32),
+            (SliceType::Urllc, 2),
+            (SliceType::MMtc, 3),
+            (SliceType::Sensing, 4),
+        ];
+        for (slice_type, expected_nssai) in cases {
+            let slice = nssf.select(slice_type).expect("slice must exist");
+            assert_eq!(
+                slice.slice_id(),
+                SliceId(expected_nssai as u16),
+                "slice_id() must equal SliceId(s_nssai) for {:?}",
+                slice_type
+            );
+        }
     }
 }
