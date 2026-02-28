@@ -1,0 +1,22 @@
+{
+  "name": "exp_008_onnx_semantic_codec",
+  "description": "Compare TextSemanticCodec (term-frequency) vs OnnxSemanticCodec (simulated ONNX sentence transformer)",
+  "codecs": [
+    {
+      "name": "TextSemanticCodec",
+      "output_bytes": 64,
+      "algorithm": "term-frequency FNV-1a hash buckets"
+    },
+    {
+      "name": "OnnxSemanticCodec",
+      "output_bytes": 32,
+      "algorithm": "simulated ONNX 2-layer MLP sentence transformer (tanh + L2-norm)",
+      "model_id": "sentence_transformer_v1",
+      "embedding_dim": 32,
+      "feature_dim": 128
+    }
+  ],
+  "message_sizes_bytes": [64, 128, 256, 512, 1000, 4096],
+  "target_compression_ratio": 31.25,
+  "ultra_low_latency_rationale": "32-byte payload fits in one OFDM REG at sub-THz rates, meeting 1ms E2E latency target"
+}

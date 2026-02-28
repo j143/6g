@@ -36,6 +36,10 @@ path = "experiments/exp_006_open5g_core_comparison/run.rs"
 name = "exp_007_ueransim_gnb_comparison"
 path = "experiments/exp_007_ueransim_gnb_comparison/run.rs"
 
+[[example]]
+name = "exp_008_onnx_semantic_codec"
+path = "experiments/exp_008_onnx_semantic_codec/run.rs"
+
 [dependencies]
 sixg-common  = { path = "crates/6g-common" }
 sixg-phy     = { path = "crates/6g-phy" }
