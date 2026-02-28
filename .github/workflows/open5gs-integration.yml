@@ -67,6 +67,18 @@ jobs:
           grep -v '^#' /etc/open5gs/amf.yaml | grep -v '^$'
 
       # -----------------------------------------------------------------------
+      # Stop the open5gs-amfd systemd service that apt auto-started on install.
+      # Without this the experiment's spawn of open5gs-amfd fails immediately
+      # because SBI port 7777 and metrics port 9090 are already bound.
+      # -----------------------------------------------------------------------
+      - name: Stop systemd open5gs-amfd service (clean state for experiment)
+        run: |
+          sudo systemctl stop open5gs-amfd 2>/dev/null || true
+          sudo systemctl disable open5gs-amfd 2>/dev/null || true
+          # Give the OS a moment to release the bound ports.
+          sleep 1
+
+      # -----------------------------------------------------------------------
       # Run the experiment.  The binary is on PATH so find_native_binary()
       # picks up /usr/bin/open5gs-amfd, starts it, reads /etc/open5gs/amf.yaml,
       # scrapes the live Prometheus endpoint, and runs our 6G simulation.
