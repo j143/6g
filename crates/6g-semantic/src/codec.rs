@@ -496,33 +496,18 @@ impl Validate for OnnxSemanticValidation {
         let text_b = b"cat sat on a mat";
         let text_c = b"stock exchange closes higher today";
 
-        let emb_a = {
-            let features = text_to_features(text_a);
-            let req = InferenceRequest {
-                model_id: "sentence_transformer_v1".to_string(),
-                inputs: features,
-            };
+        let embed = |text: &[u8]| -> Vec<f32> {
             let model = OnnxModel::new("sentence_transformer_v1");
+            let req = InferenceRequest {
+                model_id: model.id().to_string(),
+                inputs: text_to_features(text),
+            };
             model.predict(&req).unwrap().outputs
         };
-        let emb_b = {
-            let features = text_to_features(text_b);
-            let req = InferenceRequest {
-                model_id: "sentence_transformer_v1".to_string(),
-                inputs: features,
-            };
-            let model = OnnxModel::new("sentence_transformer_v1");
-            model.predict(&req).unwrap().outputs
-        };
-        let emb_c = {
-            let features = text_to_features(text_c);
-            let req = InferenceRequest {
-                model_id: "sentence_transformer_v1".to_string(),
-                inputs: features,
-            };
-            let model = OnnxModel::new("sentence_transformer_v1");
-            model.predict(&req).unwrap().outputs
-        };
+
+        let emb_a = embed(text_a);
+        let emb_b = embed(text_b);
+        let emb_c = embed(text_c);
 
         let cos_related = cosine_similarity(&emb_a, &emb_b);
         let cos_unrelated = cosine_similarity(&emb_a, &emb_c);

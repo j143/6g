@@ -258,9 +258,9 @@ impl Validate for OnnxModelValidation {
             module: "6g-ai::onnx_model",
             checks: vec![
                 ValidationCheck::new("output_dimension", out_dim, EMBEDDING_DIM as f64, 0.0),
-                ValidationCheck::new("l2_norm_is_unit", norm, 1.0, 0.5),
+                ValidationCheck::new("l2_norm_is_unit", norm, 1.0, 0.01),
                 ValidationCheck::new("deterministic_inference", determinism_flag, 1.0, 0.0),
-                ValidationCheck::new("self_cosine_similarity_is_one", cos_self, 1.0, 0.1),
+                ValidationCheck::new("self_cosine_similarity_is_one", cos_self, 1.0, 0.01),
             ],
         }
     }

@@ -214,11 +214,15 @@ fn word_hash(word: &str) -> usize {
     h as usize
 }
 
-/// Truncate a string to at most `max_len` characters for display.
+/// Truncate a string to at most `max_len` bytes at a valid UTF-8 character boundary.
 fn truncate<'a>(s: &'a str, max_len: usize) -> &'a str {
     if s.len() <= max_len {
-        s
-    } else {
-        &s[..max_len]
+        return s;
     }
+    // Walk backwards from max_len to find a valid char boundary
+    let mut end = max_len;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
