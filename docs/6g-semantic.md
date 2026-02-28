@@ -46,7 +46,21 @@ pub trait SemanticCodec: Send + Sync {
 }
 ```
 
-Phase 5 will implement a real encoder using a pre-trained sentence transformer loaded via ONNX Runtime (`ort` crate).
+`TextSemanticCodec` is the current implementation. It uses a deterministic term-frequency signature (always 64 bytes, ~15× compression for typical text). A production-quality ONNX-based sentence transformer encoder is future work (see ROADMAP.md Phase 6+).
+
+## `GoalSpec` — 6G Semantic PDU Session Contract
+
+`GoalSpec` expresses a session's QoS as a task-success contract rather than bandwidth/latency (used by `6g-core/smf.rs`):
+
+```rust
+pub struct GoalSpec {
+    pub task: SemanticTask,
+    pub min_success_rate: TaskSuccessRate,         // e.g. TaskSuccessRate(0.90)
+    pub max_bandwidth_reduction: BandwidthReduction, // e.g. BandwidthReduction(10.0)
+}
+```
+
+`PduSessionType::Semantic(GoalSpec)` in the SMF routes the session through `UPF::forward_semantic_uplink` → `TextSemanticCodec` rather than GTP-U, making this crate load-bearing in the 6G data path.
 
 ## What This Crate Does NOT Do
 

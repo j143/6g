@@ -11,7 +11,8 @@ distinct subsystem of the 6G protocol stack:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  6G Core Network (6GC)                  │
-│   AMF · SMF · UPF · PCF · NSSF                          │
+│   AMF+ · SMF+ · UPF+ · PCF · NSSF · AUSF/UDM           │
+│   NRF (capability graph) · SDF (sensing exposure)       │
 └───────────────────────┬─────────────────────────────────┘
                         │ N2/N3
 ┌───────────────────────▼─────────────────────────────────┐
@@ -53,22 +54,30 @@ Cross-cutting subsystems
 
 | Concept | Crate | Status |
 |---------|-------|--------|
-| Sub-THz / THz spectrum | `6g-phy` | Skeleton |
-| Holographic MIMO | `6g-phy` | Skeleton |
-| Reconfigurable Intelligent Surfaces (RIS) | `6g-phy` | Skeleton |
-| AI-native waveform | `6g-phy` | Skeleton |
-| OTFS waveform | `6g-phy` | Skeleton |
-| AI-native scheduler | `6g-mac` | Skeleton |
-| HARQ (32 processes) | `6g-mac` | Skeleton |
-| NOMA / RSMA / Grant-Free | `6g-mac` | Skeleton |
-| ROHC / AES ciphering | `6g-pdcp` | Skeleton |
-| RRC Inactive state | `6g-rrc` | Skeleton |
-| Integrated Sensing (DFRC / OTFS-ISAC) | `6g-isac` | Skeleton |
-| AI inference engine | `6g-ai` | Skeleton |
-| LEO / HAPS / UAV nodes | `6g-ntn` | Skeleton |
-| Semantic communications | `6g-semantic` | Skeleton |
-| Network slicing (NSSF) | `6g-core` | Skeleton |
-| AMF / SMF / UPF / PCF | `6g-core` | Skeleton |
+| Sub-THz / THz spectrum + path loss | `6g-phy` | ✅ Implemented |
+| Holographic MIMO / ELAA | `6g-phy` | ✅ Implemented |
+| Reconfigurable Intelligent Surfaces (RIS) | `6g-phy` | ✅ Implemented |
+| AI-native waveform (placeholder) | `6g-phy` | ✅ Skeleton |
+| OTFS waveform | `6g-phy` | ✅ Implemented |
+| AI Q-learning bandit scheduler | `6g-mac` | ✅ Implemented |
+| HARQ (32 processes + proactive) | `6g-mac` | ✅ Implemented |
+| NOMA / RSMA / Grant-Free | `6g-mac` | ✅ Implemented |
+| ROHC header compression + ciphering | `6g-pdcp` | ✅ Implemented |
+| RRC Inactive state | `6g-rrc` | ✅ Implemented |
+| Integrated Sensing / DFRC OTFS-ISAC | `6g-isac` | ✅ Implemented |
+| AI channel estimator (LS/MMSE/MLP) | `6g-ai` | ✅ Implemented |
+| LEO / HAPS / UAV nodes + handover | `6g-ntn` | ✅ Implemented |
+| Semantic codec + goal-oriented metrics | `6g-semantic` | ✅ Implemented |
+| Network slicing + admission control | `6g-core` | ✅ Implemented |
+| AMF / SMF / UPF / PCF (full teardown) | `6g-core` | ✅ Implemented |
+| AUSF / UDM (5G-AKA flow) | `6g-core` | ✅ Implemented |
+| NRF capability-graph discovery | `6g-core` | ✅ Implemented |
+| SDF — Sensing Data Function | `6g-core` | ✅ Implemented |
+| NTN-aware AMF (`TrackingArea` enum) | `6g-core` | ✅ Implemented |
+| Semantic PDU sessions + UPF routing | `6g-core` | ✅ Implemented |
+| User-plane-first / lazy establishment | `6g-core` | ✅ Implemented |
+| Digital Twin (snapshot + diff) | `6g-core` | ✅ Implemented |
+| ONNX-based sentence transformer codec | `6g-semantic` | 🔲 Pending Phase 6+ |
 
 ## Getting Started
 
