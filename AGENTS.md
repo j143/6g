@@ -129,12 +129,15 @@ Additionally, manually verify:
 ### 4. Doc-Code and Test Coverage
 ```bash
 cargo test --workspace     # must exit 0 — zero test failures
+python3 scripts/check_doc_sync.py  # must print "Doc-code sync check passed."
 ```
 Additionally verify manually:
 - Every new `pub fn` has a `///` doc comment stating the physical units of
   all arguments and the return value.
 - Every new physics/protocol module has at least one `#[test]` that checks
   a known numerical result (formula + reference) and one `Validate` impl.
+- Every new `pub struct` or `pub enum` is mentioned by name in the
+  corresponding `docs/<crate>.md` file (enforced by `check_doc_sync.py`).
 
 > **Rule**: If any check fails, fix the issue first — do not proceed to the
 > next change.  Document which checks were run in the PR description.
