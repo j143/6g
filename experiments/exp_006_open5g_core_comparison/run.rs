@@ -62,6 +62,10 @@ enum AmfRuntime {
     NativePid(Child),
     /// Docker container (fallback for local development).
     Docker,
+    /// Pre-existing AMF instance already running (e.g. auto-started by systemd
+    /// when the open5gs-amf package is installed via apt).  Drop is a no-op
+    /// because we did not start this instance.
+    Preexisting,
 }
 
 impl Drop for AmfRuntime {
@@ -73,6 +77,8 @@ impl Drop for AmfRuntime {
                 let _ = child.wait();
             }
             AmfRuntime::Docker => stop_docker_container("exp006-open5gs-amf"),
+            // We did not start this instance — leave it running.
+            AmfRuntime::Preexisting => {}
         }
     }
 }
@@ -472,9 +478,28 @@ fn main() {
             println!("[Step 0] Native open5gs binary detected: {bin}");
             println!("         Config: {cfg_path}");
             let amf_cfg = parse_amf_yaml(cfg_path).expect("AMF YAML must parse");
-            let child = start_native_amf(bin, cfg_path).expect("open5gs-amfd must start");
-            let runtime = AmfRuntime::NativePid(child);
+            let mut child = start_native_amf(bin, cfg_path).expect("open5gs-amfd must start");
+            // Poll for an immediate startup failure (e.g. when the open5gs-amf
+            // systemd service was auto-started by `apt install` and already
+            // holds SBI port 7777 and metrics port 9090).  Check every 100 ms
+            // for up to 1 s so we don't miss a brief startup race.
+            let immediate_exit = (0..10).find_map(|_| {
+                std::thread::sleep(Duration::from_millis(100));
+                child.try_wait().ok().and_then(|s| s)
+            });
             let addr = detect_metrics_addr("").unwrap_or_else(|| "127.0.0.1:9090".to_owned());
+            let runtime = match immediate_exit {
+                Some(status) => {
+                    // Binary exited immediately — a pre-existing instance (started
+                    // by systemd) is already running on this host.  Use it.
+                    println!(
+                        "         Binary exited immediately (status={status}); \
+                         using pre-existing open5gs AMF instance"
+                    );
+                    AmfRuntime::Preexisting
+                }
+                None => AmfRuntime::NativePid(child),
+            };
             (runtime, amf_cfg, addr)
         }
         None => {
