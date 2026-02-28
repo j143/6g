@@ -139,8 +139,28 @@ SBAv2 collapses ≥ 4 NAS round trips into 1 RTT via inline token auth:
 | AMF→AUSF | Authentication Request | (eliminated) |
 | **Round trips** | **≥ 4** | **1** |
 
+Key types:
+
+| Type | Role |
+|---|---|
+| `SbaRegistration` | Per-UE record: holds `ue`, `token`, `validated` flag, and `registered_at` timestamp. Never mutated after initial validation — audit trail is preserved even after `deregister()`. |
+| `SbaV2Registry` | Registry holding all `SbaRegistration` records. `register_with_token(ue, token)` — validates the token and marks the record active. `deregister(ue)` — marks inactive, retains record. `validated_ue_count()` — active registrations. `registration_count()` — all records including deregistered. |
+| `SbaV2Validation` | `Validate` impl: checks token derivation determinism and round-trip register/deregister consistency. |
+
 `CoreNetwork::register_ue(ue, tracking_area)` — SBAv2 1-RTT flow.  
 `CoreNetwork::register_ue_ntn(ue, ntn_node_id, beam_id, propagation_delay)` — NTN variant.
+
+## `SessionGrant` — Session Establishment Result
+
+`SessionGrant` is the success value returned by `CoreNetwork::establish_session()`. It bundles everything the caller needs to use a newly created PDU session:
+
+| Field | Type | Description |
+|---|---|---|
+| `session_id` | `u8` | SMF-assigned session identifier |
+| `ip_addr` | `Ipv4Addr` | UPF-allocated IPv4 address for this session |
+| `slice` | `SliceType` | Network slice selected by NSSF |
+| `qci` | `u8` | QCI from PCF policy |
+| `gbr` | `Bitrate` | Guaranteed bit rate from PCF |
 
 ## `CoreNetwork` Orchestrator Methods
 
@@ -159,6 +179,27 @@ Wires `RrcLayer` and `PdcpEntity` to N2/N3 stubs calling `Amf` and `Upf`. Key me
 ## NTN Handover (`crates/6g-ntn/src/handover.rs`)
 
 LEO → terrestrial handover manager. Trigger conditions: better terrestrial RSRP ≥ 3 dB, LEO delay > 5 ms, satellite elevation < 10°.
+
+## Digital Twin (`digital_twin.rs`)
+
+The Digital Twin gives the core a real-time self-model: it snapshots the network state each registration/session event and computes incremental diffs for anomaly detection and AI-native policy decisions.
+
+| Type | Role |
+|---|---|
+| `UeSnapshot` | Per-UE state at one point in time: `ue_id`, `tracking_area` (as `u32` TAC), `session_count`. |
+| `NetworkSnapshot` | Full network state at one sequence number: collection of `UeSnapshot`s plus per-slice load percentages (`s_nssai → load_pct`). `add_ue()` / `set_slice_load()` build the snapshot incrementally. |
+| `SnapshotDiff` | Delta between two consecutive `NetworkSnapshot`s: `added_ues`, `removed_ues`, `load_changes`. `is_empty()` returns `true` when nothing changed. |
+| `DigitalTwinValidation` | `Validate` impl: checks that snapshotting a single UE produces a non-empty diff, and that a second identical snapshot produces an empty diff. |
+
+## AUSF / UDM Validation and NRF / SDF Validation
+
+Each new Phase 5/6 NF exports a `Validate` impl so CI can exercise known-good numerical / state checks:
+
+| Type | Module | What it checks |
+|---|---|---|
+| `AusfValidation` | `ausf.rs` | `SubscriberCredential::new` → `initiate_auth` → `verify_response` round-trip succeeds; wrong response is rejected. |
+| `NrfValidation` | `nrf.rs` | Register two NF profiles → discover by type returns both → deregister one → active_count decrements; capability query returns matching NFs only. |
+| `SdfValidation` | `sdf.rs` | Subscribe with a 500 m range → publish a 200 m event delivers to subscriber; publish a 600 m event does not. |
 
 ## References
 
