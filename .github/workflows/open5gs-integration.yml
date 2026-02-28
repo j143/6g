@@ -52,10 +52,17 @@ jobs:
 
       - name: Verify open5gs AMF installation
         run: |
-          # Fail immediately if the binary or config is missing.
-          open5gs-amfd --version
+          # The open5gs-amf package creates /var/log/open5gs/ via its postinst
+          # script, but on some runners the directory may not exist yet.
+          # Create it so the AMF binary can write its log on startup.
+          sudo mkdir -p /var/log/open5gs
+          sudo chown -R runner:runner /var/log/open5gs 2>/dev/null || \
+            sudo chmod 777 /var/log/open5gs
+          # Confirm the binary and config are in place.
           ls -la /usr/bin/open5gs-amfd
           ls -la /etc/open5gs/amf.yaml
+          # Show the installed package version without starting the daemon.
+          dpkg -s open5gs-amf | grep -E '^(Package|Version):'
           echo "=== AMF config (active lines) ==="
           grep -v '^#' /etc/open5gs/amf.yaml | grep -v '^$'
 
@@ -63,9 +70,12 @@ jobs:
       # Run the experiment.  The binary is on PATH so find_native_binary()
       # picks up /usr/bin/open5gs-amfd, starts it, reads /etc/open5gs/amf.yaml,
       # scrapes the live Prometheus endpoint, and runs our 6G simulation.
+      # The log directory must exist before the daemon starts.
       # -----------------------------------------------------------------------
       - name: Run exp_006 against actual open5gs binary
         run: |
+          sudo mkdir -p /var/log/open5gs
+          sudo chmod 777 /var/log/open5gs
           cargo run --example exp_006_open5g_core_comparison
         timeout-minutes: 5
 
