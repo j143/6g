@@ -1,12 +1,7 @@
 {
-  "description": "6G SBAv2 core network comparison against free5gc and open5gs 5G core configurations",
-  "note_free5gc": "free5gc defaults: PLMN 208/93, TAC 1, UPF pool 10.60.0.0/24, SST-1 (eMBB)",
-  "note_open5gs": "open5gs defaults: PLMN 999/70, TAC 1, SST-1 (eMBB), AMF served by localhost:38412",
-  "plmn_mcc": 208,
-  "plmn_mnc": 93,
-  "tac": 1,
-  "ue_id_base": 208930000000001,
+  "description": "open5GS actual system integration test — uses gradiant/open5gs:2.7.5 Docker container",
+  "note": "PLMN/TAC/SST are read at runtime from the live open5gs container; ue_id_base uses open5gs default PLMN 999/70",
+  "ue_id_base": 999700000000001,
   "ue_count": 5,
-  "slice": "EMbb",
   "user_data_bytes": 64
 }
