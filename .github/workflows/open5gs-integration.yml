@@ -1,0 +1,75 @@
+name: open5GS Integration Test
+
+# Runs exp_006_open5g_core_comparison against the actual open5gs AMF binary
+# installed from the official ppa:open5gs/latest PPA.
+#
+# This is the "actual system test" requested in the issue: the real
+# open5gs-amfd binary (latest release) is installed, started, and our 6G
+# SBAv2 implementation is validated against its live Prometheus metrics.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "experiments/exp_006_open5g_core_comparison/**"
+      - "crates/6g-core/**"
+      - ".github/workflows/open5gs-integration.yml"
+  pull_request:
+    paths:
+      - "experiments/exp_006_open5g_core_comparison/**"
+      - "crates/6g-core/**"
+      - ".github/workflows/open5gs-integration.yml"
+  # Allow manual trigger from the Actions tab.
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  open5gs-system-test:
+    name: open5GS System Integration Test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # -----------------------------------------------------------------------
+      # Install the actual open5gs AMF binary from the official PPA.
+      # ppa:open5gs/latest provides the most recent stable release for Ubuntu.
+      # We install only the open5gs-amf package (not the full stack) to keep
+      # the job fast; the AMF is the only NF the experiment interacts with.
+      # -----------------------------------------------------------------------
+      - name: Add open5gs PPA and install AMF binary
+        run: |
+          sudo add-apt-repository -y ppa:open5gs/latest
+          sudo apt-get update -q
+          sudo apt-get install -y open5gs-amf
+
+      - name: Verify open5gs AMF installation
+        run: |
+          # Fail immediately if the binary or config is missing.
+          open5gs-amfd --version
+          ls -la /usr/bin/open5gs-amfd
+          ls -la /etc/open5gs/amf.yaml
+          echo "=== AMF config (active lines) ==="
+          grep -v '^#' /etc/open5gs/amf.yaml | grep -v '^$'
+
+      # -----------------------------------------------------------------------
+      # Run the experiment.  The binary is on PATH so find_native_binary()
+      # picks up /usr/bin/open5gs-amfd, starts it, reads /etc/open5gs/amf.yaml,
+      # scrapes the live Prometheus endpoint, and runs our 6G simulation.
+      # -----------------------------------------------------------------------
+      - name: Run exp_006 against actual open5gs binary
+        run: |
+          cargo run --example exp_006_open5g_core_comparison
+        timeout-minutes: 5
+
+      - name: Show open5gs AMF log (for debugging on failure)
+        if: failure()
+        run: |
+          cat /var/log/open5gs/amf.log 2>/dev/null || echo "(log not found)"
