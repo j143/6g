@@ -22,10 +22,15 @@
 //! Phase 5 gap-closure:
 //! * [`ausf`] – AUSF + UDM: subscriber credential store + 5G-AKA auth vectors
 //! * [`nrf`]  – NRF: NF registration, deregistration, and discovery
+//!
+//! Phase 6 — 6G architectural differentiators:
+//! * [`smf`] – `PduSessionType::Semantic(GoalSpec)` — 6G-native semantic sessions
+//! * [`upf`] – `forward_semantic_uplink` + `forward_unknown_flow` (user-plane-first)
+//! * [`amf`] – `TrackingArea` enum (Terrestrial vs NTN-aware mobility)
 
 use std::net::Ipv4Addr;
 
-use sixg_common::types::{Bitrate, UeId};
+use sixg_common::types::{Bitrate, Duration, UeId};
 
 pub mod amf;
 pub mod ausf;
@@ -38,7 +43,7 @@ pub mod sba_v2;
 pub mod smf;
 pub mod upf;
 
-pub use amf::Amf;
+pub use amf::{Amf, TrackingArea};
 pub use ausf::{Ausf, SubscriberCredential, Udm};
 pub use digital_twin::DigitalTwin;
 pub use gnb::GnbNode;
@@ -46,8 +51,8 @@ pub use nrf::{NfProfile, NfType, Nrf};
 pub use nssf::{NetworkSliceSelector, SliceType};
 pub use pcf::Pcf;
 pub use sba_v2::SbaV2Registry;
-pub use smf::{PduSessionType, Smf};
-pub use upf::Upf;
+pub use smf::{GoalSpec, PduSessionType, Smf};
+pub use upf::{FlowAction, Upf};
 
 /// Result returned by [`CoreNetwork::establish_session`].
 #[derive(Debug, Clone)]
@@ -119,7 +124,38 @@ impl CoreNetwork {
         let granted = self.sba_v2.register_with_token(ue, token);
         if granted {
             // AMF still holds a mobility record for paging and handover.
-            self.amf.register(ue, tracking_area);
+            self.amf.register_terrestrial(ue, tracking_area);
+            self.amf.authenticate(ue);
+            self.push_snapshot();
+        }
+        granted
+    }
+
+    /// Register a UE served by an NTN node using SBAv2 inline authentication.
+    ///
+    /// Same SBAv2 1-RTT flow as [`register_ue`] but records the UE in the AMF
+    /// with a [`TrackingArea::Ntn`] context so that NTN-aware paging and
+    /// pre-emptive handover can be triggered before the satellite pass ends.
+    ///
+    /// Returns `true` when the token is valid and service is granted.
+    pub fn register_ue_ntn(
+        &mut self,
+        ue: UeId,
+        ntn_node_id: u64,
+        beam_id: u32,
+        propagation_delay: Duration,
+    ) -> bool {
+        let token = sba_v2::ServiceToken::from_ue_id(ue);
+        let granted = self.sba_v2.register_with_token(ue, token);
+        if granted {
+            self.amf.register(
+                ue,
+                TrackingArea::Ntn {
+                    ntn_node_id,
+                    beam_id,
+                    propagation_delay,
+                },
+            );
             self.amf.authenticate(ue);
             self.push_snapshot();
         }
@@ -161,7 +197,8 @@ impl CoreNetwork {
     /// Steps:
     /// 1. **NSSF** selects the requested slice — returns `None` if unavailable.
     /// 2. **SMF** allocates a session ID and a unique IP address.
-    /// 3. **UPF** bearer is marked as allocated on the session record.
+    /// 3. **UPF** bearer is marked as allocated and the session → UE mapping
+    ///    is registered (enabling lazy `forward_unknown_flow` lookups).
     /// 4. **PCF** ensures a policy exists for the slice (adds default if absent).
     /// 5. **Digital Twin** is updated with the new session state.
     ///
@@ -180,8 +217,9 @@ impl CoreNetwork {
         let session_id = self.smf.establish_session(ue, pdu_type);
         let ip_addr = self.smf.session_ip(session_id)?;
 
-        // 3. SMF → UPF linkage: flip upf_allocated on the session record.
+        // 3. SMF → UPF linkage: mark bearer allocated + register for lazy lookup.
         self.smf.mark_upf_allocated(session_id);
+        self.upf.register_session(session_id, ue);
 
         // 4. PCF: add a default slice policy if none exists yet.
         if self.pcf.policy_for_slice(slice).is_none() {
@@ -366,5 +404,78 @@ mod tests {
     fn deregister_unknown_ue_returns_false() {
         let mut core = CoreNetwork::new();
         assert!(!core.deregister_ue(UeId(999)));
+    }
+
+    /// Option 1: Semantic session type flows through establish_session.
+    #[test]
+    fn establish_semantic_session_succeeds() {
+        let mut core = CoreNetwork::new();
+        let ue = UeId(30);
+        assert!(core.register_ue(ue, 5000));
+
+        let goal = GoalSpec {
+            task: sixg_semantic::SemanticTask::ImageClassification,
+            min_success_rate: sixg_semantic::codec::TaskSuccessRate(0.90),
+            max_bandwidth_reduction: sixg_semantic::codec::BandwidthReduction(10.0),
+        };
+        let grant = core
+            .establish_session(ue, SliceType::EMbb, PduSessionType::Semantic(goal))
+            .expect("semantic session must be established");
+
+        assert!(grant.session_id > 0);
+        // Verify SMF has it flagged as semantic.
+        let sessions = core.smf.sessions_for_ue(ue);
+        assert_eq!(sessions.len(), 1);
+        assert!(
+            sessions[0].session_type.is_semantic(),
+            "session type must be Semantic"
+        );
+    }
+
+    /// Option 2: User-plane-first — packet for unregistered UE returns TriggerEstablishment.
+    #[test]
+    fn user_plane_first_triggers_establishment_for_unknown_ue() {
+        let mut core = CoreNetwork::new();
+        let ue = UeId(50);
+        // No session established — UPF should request lazy establishment.
+        let action = core.upf.forward_unknown_flow(ue, b"first packet");
+        assert_eq!(
+            action,
+            FlowAction::TriggerEstablishment(ue),
+            "unregistered UE must trigger lazy session establishment"
+        );
+    }
+
+    /// Option 2: User-plane-first — after establish_session, packet is forwarded immediately.
+    #[test]
+    fn user_plane_first_forwards_after_session_established() {
+        let mut core = CoreNetwork::new();
+        let ue = UeId(60);
+        assert!(core.register_ue(ue, 6000));
+        let grant = core
+            .establish_session(ue, SliceType::EMbb, PduSessionType::Ip)
+            .unwrap();
+
+        // Now the UPF knows the session — packet must be forwarded immediately.
+        let action = core.upf.forward_unknown_flow(ue, b"data packet");
+        assert_eq!(
+            action,
+            FlowAction::Forwarded(grant.session_id),
+            "known UE must be forwarded immediately without control-plane roundtrip"
+        );
+    }
+
+    /// Option 4: NTN-aware AMF — UE registered via NTN node shows correct tracking area.
+    #[test]
+    fn ntn_ue_registration_records_ntn_tracking_area() {
+        let mut core = CoreNetwork::new();
+        let ue = UeId(70);
+        assert!(
+            core.register_ue_ntn(ue, 42, 3, Duration::from_ms(1.83)),
+            "NTN registration must succeed"
+        );
+        let ta = core.amf.tracking_area(ue).unwrap();
+        assert!(ta.is_ntn(), "tracking area must be NTN");
+        assert_eq!(core.amf.ntn_ue_count(), 1);
     }
 }

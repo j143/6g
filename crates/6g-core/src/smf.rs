@@ -9,9 +9,31 @@
 use std::net::Ipv4Addr;
 
 use sixg_common::types::UeId;
+use sixg_semantic::codec::{BandwidthReduction, TaskSuccessRate};
+use sixg_semantic::SemanticTask;
+
+/// Goal specification for a semantic PDU session.
+///
+/// Replaces the 5G bandwidth/latency QoS contract with a *task-success* SLA.
+/// "This session is for image classification — guarantee that `min_success_rate`
+/// of inferences at the receiver succeed, using ≤ `max_bandwidth_pct` of the
+/// raw data path."
+///
+/// Reference: Qin et al., *Semantic Communications: Principles and Challenges*,
+/// IEEE JSAC 2022.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GoalSpec {
+    /// Semantic task type (classification, speech understanding, control, text).
+    pub task: SemanticTask,
+    /// Minimum required task success rate (0.0–1.0).
+    pub min_success_rate: TaskSuccessRate,
+    /// Maximum fraction of raw IP bandwidth permitted (dimensionless, 0.0–1.0).
+    /// A value of `BandwidthReduction(10.0)` means ≤ 10% of raw bandwidth.
+    pub max_bandwidth_reduction: BandwidthReduction,
+}
 
 /// PDU session type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PduSessionType {
     /// IPv4/IPv6 internet session.
     Ip,
@@ -19,6 +41,17 @@ pub enum PduSessionType {
     Unstructured,
     /// Ethernet session (LAN services).
     Ethernet,
+    /// **6G-native** semantic session — QoS is expressed as a task-success
+    /// rate, not bandwidth/latency.  The UPF routes payloads through a
+    /// [`sixg_semantic::SemanticCodec`] rather than straight GTP-U forwarding.
+    Semantic(GoalSpec),
+}
+
+impl PduSessionType {
+    /// Returns `true` if this is a semantic (goal-oriented) session.
+    pub fn is_semantic(&self) -> bool {
+        matches!(self, Self::Semantic(_))
+    }
 }
 
 /// A PDU session record maintained by the SMF.
@@ -109,14 +142,7 @@ impl Smf {
             .iter_mut()
             .find(|s| s.session_id == session_id)
         {
-            let updated = PduSession {
-                session_id: s.session_id,
-                ue: s.ue,
-                session_type: s.session_type,
-                ip_addr: s.ip_addr,
-                upf_allocated: true,
-            };
-            *s = updated;
+            s.upf_allocated = true;
         }
     }
 
@@ -203,5 +229,28 @@ mod tests {
     fn session_ip_returns_none_for_unknown_id() {
         let smf = Smf::new();
         assert!(smf.session_ip(99).is_none());
+    }
+
+    #[test]
+    fn semantic_session_is_identified() {
+        let mut smf = Smf::new();
+        let goal = GoalSpec {
+            task: SemanticTask::ImageClassification,
+            min_success_rate: TaskSuccessRate(0.90),
+            max_bandwidth_reduction: BandwidthReduction(10.0),
+        };
+        let id = smf.establish_session(UeId(1), PduSessionType::Semantic(goal));
+        assert_eq!(smf.session_count(), 1);
+        // Retrieve the session and verify it is flagged as semantic.
+        let session = smf.sessions_for_ue(UeId(1));
+        assert_eq!(session.len(), 1);
+        assert!(
+            session[0].session_type.is_semantic(),
+            "session must be semantic"
+        );
+        assert!(
+            smf.session_ip(id).is_some(),
+            "semantic session must have an IP"
+        );
     }
 }
