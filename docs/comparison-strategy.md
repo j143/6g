@@ -35,6 +35,19 @@ requires importing published measurement CSV/JSON files and running the
 | **Vienna 5G Link Level Simulator** | MATLAB | BER vs Eb/N0, spectral efficiency | https://www.nt.tuwien.ac.at/research/mobile-communications/vienna-5g-simulators/ |
 | **MATLAB 5G Toolbox** | MATLAB | Throughput, BLER, PDSCH/PUSCH channel estimation MSE | https://www.mathworks.com/products/5g.html |
 
+### 2.2 Open-Source 5G Core Implementations (Level 2)
+
+| System | Language | Outputs for comparison | URL |
+|--------|----------|------------------------|-----|
+| **free5gc** | Go | Registration success rate, PDU session allocation, NAS message count | https://github.com/free5gc/free5gc |
+| **open5gs** | C | Session-per-UE ratio, AMF registration count, UPF bearer allocation | https://github.com/open5gs/open5gs |
+
+Both implement the 3GPP TS 23.502 §4.2.2 Initial Registration procedure
+(5 UE-facing messages, ≥ 4 round trips) and the TS 23.502 §4.3.2 PDU Session
+Establishment procedure.  Experiment `exp_006_open5g_core_comparison` validates
+functional parity and quantifies the 6G SBAv2 control-plane overhead reduction
+against these reference configurations.
+
 All five can produce tabular outputs (CSV / JSON) at a known SNR operating
 point.  The comparison procedure is described in §4.
 
@@ -74,6 +87,9 @@ measurement available from a real system.
 | RIS SNR gain | Basar et al. Table I, 150 GHz | `baselines/basar_ris_snr_gain.csv` |
 | `jain_fairness` at 20 UEs | ns-3 NR PF scheduler Jain index | `baselines/ns3_scheduler_fairness.csv` |
 | `crb_range_m2` | Analytic Kay eq. 3.31 | Covered by `DfrcValidation` |
+| `CoreNetwork::register_ue` success rate | free5gc AMF registration (TS 23.502 §4.2.2) | Inline CSV in `exp_006` |
+| `CoreNetwork::establish_session` ratio | open5gs SMF session allocation (TS 23.502 §4.3.2) | Inline CSV in `exp_006` |
+| `SbaV2Registry` RTT count | 5G NAS round-trip count (free5gc/open5gs) | Level 3 assertion in `exp_006` |
 
 Baseline CSV files live in a top-level `baselines/` directory (not checked in
 — see §4 for how to populate them).  Each file has exactly two columns:
@@ -183,4 +199,5 @@ fails due to missing external data.
 | MAC | Jain fairness vs ns-3 NR | Run ns-3 script; import CSV |
 | MAC | HARQ BLER vs OAI | Extend `HarqManager` with BER model; import OAI log |
 | ISAC | CRB vs Liu et al. Table II | Extend experiment 001; import paper table |
+| Core (done) | Registration/session vs free5gc & open5gs | Implemented in `exp_006_open5g_core_comparison` |
 | System | E2E latency vs srsRAN 5G SA | Requires end-to-end stack wiring |
