@@ -27,21 +27,21 @@ Since you know 5G call flows deeply, here's the delta mental model:
 
 ```
 ┌─────────────────────────────────┐
-│   Semantic / Goal-oriented       │  ← NEW: transmit meaning, not bits
+│   Semantic / Goal-oriented      │  ← NEW: transmit meaning, not bits
 ├─────────────────────────────────┤
-│   AI/ML Native Layer             │  ← NEW: protocol decisions via inference
+│   AI/ML Native Layer            │  ← NEW: protocol decisions via inference
 ├─────────────────────────────────┤
-│   6G Core (User-plane first)     │  ← REARCHITECTED: flatter than 5GC
+│   6G Core (User-plane first)    │  ← REARCHITECTED: flatter than 5GC
 ├─────────────────────────────────┤
-│   RRC (simplified)               │  ← SIMPLIFIED vs 5G RRC complexity
+│   RRC (simplified)              │  ← SIMPLIFIED vs 5G RRC complexity
 ├─────────────────────────────────┤
-│   PDCP / RLC / MAC               │  ← EVOLVED (same concepts, new params)
+│   PDCP / RLC / MAC              │  ← EVOLVED (same concepts, new params)
 ├─────────────────────────────────┤
-│   PHY (THz + RIS + MIMO)         │  ← RADICALLY NEW
+│   PHY (THz + RIS + MIMO)        │  ← RADICALLY NEW
 ├─────────────────────────────────┤
-│   NTN (Sat + HAPS + UAV)         │  ← NEW as native (not bolted-on like 5G NTN)
+│   NTN (Sat + HAPS + UAV)        │  ← NEW as native (not bolted-on like 5G NTN)
 ├─────────────────────────────────┤
-│   ISAC (Sensing + Comms unified) │  ← NEW: same waveform for radar+comms
+│  ISAC (Sensing + Comms unified) │  ← NEW: same waveform for radar+comms
 └─────────────────────────────────┘
 ```
 

@@ -11,12 +11,12 @@ distinct subsystem of the 6G protocol stack:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  6G Core Network (6GC)                  │
-│   AMF · SMF · UPF · PCF · NSSF                         │
+│   AMF · SMF · UPF · PCF · NSSF                          │
 └───────────────────────┬─────────────────────────────────┘
                         │ N2/N3
 ┌───────────────────────▼─────────────────────────────────┐
 │                     RRC (6g-rrc)                        │
-│   Connection management · SIBs · Mobility · AI provisioning │
+│Connection management · SIBs · Mobility · AI provisioning│
 └───────────────────────┬─────────────────────────────────┘
                         │
 ┌───────────────────────▼─────────────────────────────────┐
@@ -31,13 +31,13 @@ distinct subsystem of the 6G protocol stack:
                         │
 ┌───────────────────────▼─────────────────────────────────┐
 │                     MAC (6g-mac)                        │
-│   AI-native scheduler · HARQ · OFDMA/NOMA/RSMA         │
+│   AI-native scheduler · HARQ · OFDMA/NOMA/RSMA          │
 └───────────────────────┬─────────────────────────────────┘
                         │
 ┌───────────────────────▼─────────────────────────────────┐
 │                     PHY (6g-phy)                        │
 │   THz/Sub-THz spectrum · Holographic MIMO · RIS         │
-│   OFDM · DFT-s-OFDM · OTFS · AI-native waveforms       │
+│   OFDM · DFT-s-OFDM · OTFS · AI-native waveforms        │
 └─────────────────────────────────────────────────────────┘
 
 Cross-cutting subsystems
@@ -94,19 +94,3 @@ cargo run
 cargo test --workspace
 ```
 
-## Roadmap
-
-- [ ] PHY: channel simulation (THz path loss, molecular absorption)
-- [ ] PHY: beam management with AI-driven codebook search
-- [ ] PHY: RIS phase-shift optimisation
-- [ ] MAC: AI scheduler backed by a real RL policy
-- [ ] PDCP: AES-CTR ciphering and CMAC integrity
-- [ ] ISAC: DFRC waveform simulation
-- [ ] AI: model registry and ONNX runtime integration
-- [ ] NTN: Doppler compensation and timing advance
-- [ ] Semantic: DNN-based semantic encoder/decoder
-- [ ] Core: async service-based architecture with tokio
-
-## License
-
-Apache-2.0
