@@ -1,0 +1,7 @@
+{
+  "description": "open5GS actual system integration test — uses gradiant/open5gs:2.7.5 Docker container",
+  "note": "PLMN/TAC/SST are read at runtime from the live open5gs container; ue_id_base uses open5gs default PLMN 999/70",
+  "ue_id_base": 999700000000001,
+  "ue_count": 5,
+  "user_data_bytes": 64
+}
