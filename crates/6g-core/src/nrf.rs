@@ -1,11 +1,26 @@
 //! Network Repository Function (NRF).
 //!
 //! The NRF provides NF discovery and registration services in the 5G/6G SBA:
-//! * NFs register their profile (type, address, capacity) on startup.
+//! * NFs register their profile (type, address, capacity, capabilities) on startup.
 //! * Consumer NFs query `discover(nf_type)` to locate provider endpoints.
+//! * Consumer NFs query `discover_by_capability(cap)` to find NFs that support
+//!   a specific 6G capability — replacing the static type-only lookup with a
+//!   knowledge-graph-style query.
 //! * NFs call `deregister(instance_id)` on shutdown (record retained for audit).
 //!
-//! Reference: 3GPP TS 29.510 (Nnrf_NFDiscovery service).
+//! ## 6G capability graph
+//!
+//! In 5G, NFs register by type and consumers query "give me any SMF".  In 6G,
+//! NFs register **capabilities** — "I can handle sub-THz sessions", "I support
+//! semantic sessions", "I can serve NTN-connected UEs".  Other NFs query
+//! "find me an SMF that can handle semantic sessions for UEs in an NTN cell."
+//!
+//! This is implemented here as a `Vec<NfCapability>` on each `NfProfile`
+//! combined with `Nrf::discover_by_capability`, without requiring an external
+//! graph library.
+//!
+//! Reference: 3GPP TS 29.510 (Nnrf_NFDiscovery service); Nokia Bell Labs
+//! *6G SBA as a Knowledge Graph*, 2022.
 
 use std::collections::HashMap;
 
@@ -33,6 +48,34 @@ pub enum NfType {
     Nef,
     /// gNB / RAN node.
     Gnb,
+    /// **6G-new**: Sensing Data Function (ISAC-to-core bridge).
+    Sdf,
+}
+
+/// 6G-specific NF capability labels.
+///
+/// NFs register capabilities alongside their type so that consumers can
+/// perform **capability-based discovery** rather than just type-based.
+/// This replaces the 5G static endpoint table with a lightweight knowledge
+/// graph: nodes are NF instances, edges are "supports capability X".
+///
+/// Reference: Nokia Bell Labs *6G SBA as a Knowledge Graph* (2022).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NfCapability {
+    /// NF can handle sub-THz (above 100 GHz) sessions.
+    SubTHz,
+    /// NF supports non-terrestrial network (LEO/HAPS/UAV) UE contexts.
+    NtnHandover,
+    /// NF supports 6G semantic (goal-oriented) PDU sessions.
+    SemanticSession,
+    /// NF can process integrated sensing and communication (ISAC) data.
+    IsacProcessing,
+    /// NF implements post-quantum cryptographic algorithms (e.g. CRYSTALS-Kyber).
+    PostQuantumAuth,
+    /// NF supports in-network AI inference (edge compute plane).
+    InNetworkAi,
+    /// NF can expose sensing results over the SBI northbound (SDF capability).
+    SensingExposure,
 }
 
 /// An NF instance profile registered in the NRF.
@@ -46,10 +89,12 @@ pub struct NfProfile {
     pub capacity: u8,
     /// `true` while the NF is active; `false` after deregistration.
     pub active: bool,
+    /// 6G capability labels supported by this NF instance.
+    pub capabilities: Vec<NfCapability>,
 }
 
 impl NfProfile {
-    /// Create a new active NF profile.
+    /// Create a new active NF profile with no capabilities.
     ///
     /// `capacity` is clamped to 100 if larger.
     pub fn new(instance_id: NodeId, nf_type: NfType, capacity: u8) -> Self {
@@ -58,7 +103,29 @@ impl NfProfile {
             nf_type,
             capacity: capacity.min(100),
             active: true,
+            capabilities: Vec::new(),
         }
+    }
+
+    /// Create a new active NF profile with the given capabilities.
+    pub fn with_capabilities(
+        instance_id: NodeId,
+        nf_type: NfType,
+        capacity: u8,
+        capabilities: Vec<NfCapability>,
+    ) -> Self {
+        Self {
+            instance_id,
+            nf_type,
+            capacity: capacity.min(100),
+            active: true,
+            capabilities,
+        }
+    }
+
+    /// Returns `true` if this profile advertises `capability`.
+    pub fn has_capability(&self, capability: NfCapability) -> bool {
+        self.capabilities.contains(&capability)
     }
 }
 
@@ -106,6 +173,22 @@ impl Nrf {
         matches
     }
 
+    /// **6G capability-based discovery** — find all active NF instances that
+    /// advertise `capability`, ordered by capacity descending.
+    ///
+    /// Example: `nrf.discover_by_capability(NfCapability::SemanticSession)`
+    /// returns every active NF (of any type) that declared
+    /// `NfCapability::SemanticSession` at registration time.
+    pub fn discover_by_capability(&self, capability: NfCapability) -> Vec<&NfProfile> {
+        let mut matches: Vec<&NfProfile> = self
+            .profiles
+            .values()
+            .filter(|p| p.active && p.has_capability(capability))
+            .collect();
+        matches.sort_by(|a, b| b.capacity.cmp(&a.capacity));
+        matches
+    }
+
     /// Number of currently active NF registrations.
     pub fn active_count(&self) -> usize {
         self.profiles.values().filter(|p| p.active).count()
@@ -143,6 +226,18 @@ impl Validate for NrfValidation {
         let found_after = nrf.discover(NfType::Upf);
         let deregister_ok = found_after.len() == 2 && nrf.total_count() == 3;
 
+        // 6G capability discovery: register an SMF with SemanticSession capability.
+        nrf.register(NfProfile::with_capabilities(
+            NodeId(10),
+            NfType::Smf,
+            80,
+            vec![NfCapability::SemanticSession, NfCapability::NtnHandover],
+        ));
+        let semantic_smfs = nrf.discover_by_capability(NfCapability::SemanticSession);
+        let cap_discovery_ok = semantic_smfs.len() == 1
+            && semantic_smfs[0].instance_id == NodeId(10)
+            && semantic_smfs[0].nf_type == NfType::Smf;
+
         ValidationResult {
             module: "nrf",
             checks: vec![
@@ -155,6 +250,12 @@ impl Validate for NrfValidation {
                 ValidationCheck::new(
                     "deregister_removes_from_discovery",
                     if deregister_ok { 1.0 } else { 0.0 },
+                    1.0,
+                    0.0,
+                ),
+                ValidationCheck::new(
+                    "capability_based_discovery_returns_correct_nf",
+                    if cap_discovery_ok { 1.0 } else { 0.0 },
                     1.0,
                     0.0,
                 ),
@@ -205,6 +306,51 @@ mod tests {
     fn capacity_is_clamped_to_100() {
         let p = NfProfile::new(NodeId(1), NfType::Amf, 200);
         assert_eq!(p.capacity, 100);
+    }
+
+    #[test]
+    fn capability_based_discovery_finds_correct_nf() {
+        let mut nrf = Nrf::new();
+        // Register two SMFs: one with SemanticSession, one without.
+        nrf.register(NfProfile::with_capabilities(
+            NodeId(10),
+            NfType::Smf,
+            80,
+            vec![NfCapability::SemanticSession],
+        ));
+        nrf.register(NfProfile::new(NodeId(11), NfType::Smf, 70));
+
+        let semantic_smfs = nrf.discover_by_capability(NfCapability::SemanticSession);
+        assert_eq!(semantic_smfs.len(), 1);
+        assert_eq!(semantic_smfs[0].instance_id, NodeId(10));
+    }
+
+    #[test]
+    fn capability_discovery_returns_empty_when_none_match() {
+        let mut nrf = Nrf::new();
+        nrf.register(NfProfile::new(NodeId(1), NfType::Amf, 90));
+        assert!(nrf.discover_by_capability(NfCapability::SubTHz).is_empty());
+    }
+
+    #[test]
+    fn capability_discovery_respects_deregistration() {
+        let mut nrf = Nrf::new();
+        nrf.register(NfProfile::with_capabilities(
+            NodeId(5),
+            NfType::Upf,
+            75,
+            vec![NfCapability::InNetworkAi],
+        ));
+        assert_eq!(
+            nrf.discover_by_capability(NfCapability::InNetworkAi).len(),
+            1
+        );
+        nrf.deregister(NodeId(5));
+        assert!(
+            nrf.discover_by_capability(NfCapability::InNetworkAi)
+                .is_empty(),
+            "deregistered NF must not appear in capability discovery"
+        );
     }
 
     #[test]
