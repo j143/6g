@@ -53,7 +53,7 @@ Key types:
 | `NtnHandoverManager` | Evaluates a slice of `HandoverTrigger`s for a UE and returns a `HandoverDecision`. Default thresholds: hysteresis = 3 dB (`PowerDb`), max delay = 5 ms, min elevation = 10° |
 | `NtnHandoverValidation` | `Validate` impl — checks that `leo_propagation_delay_ms(550 km)` ≈ 1.83 ms and that the proceed/maintain logic is correct |
 
-Free function `leo_propagation_delay_ms(altitude: Distance) -> f64` computes one-way delay in ms from the satellite altitude.
+Free function `leo_propagation_delay_ms(altitude: Distance) -> f64` computes one-way delay in ms from the satellite altitude.  The return type is raw `f64` (pre-existing code); future work should wrap this in `Duration` per AGENTS.md Rule 2.
 
 ## What This Crate Does NOT Do
 

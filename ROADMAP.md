@@ -107,9 +107,22 @@ Your 5G experience is most transferable here. Key 6G differences:
 **Goal: Demonstrate semantic communication on one end-to-end flow**
 
 These are the most speculative but highest-impact layers:
-- [ ] Semantic encoder/decoder: Use a pre-trained sentence transformer (call via `ort` / ONNX in Rust) to encode text meaning, transmit compressed representation, decode at receiver — measure reconstruction quality vs raw bit transmission at same bandwidth
+- [x] Semantic encoder/decoder: `TextSemanticCodec` — deterministic term-frequency encoder (64-byte signature, ~15× compression). ONNX-based sentence transformer is tracked as Phase 6+ work.
 - [x] AI inference crate (`6g-ai`): Implement a channel estimation neural network (simple MLP) — compare with LS/MMSE estimators at various SNRs
 - [x] Goal-oriented communication: Define a task (e.g., "transmit enough for image classification to succeed") — measure task success rate, not BER
+
+### Phase 6 — Full 6G Core Architectural Differentiators
+**Goal: Make the core genuinely 6G, not just a better 5G SA**
+
+- [x] **Semantic PDU sessions** (`6g-core/smf.rs`, `upf.rs`): `PduSessionType::Semantic(GoalSpec)` — the 4th PDU session type unique to 6G; UPF routes via `TextSemanticCodec`
+- [x] **User-plane-first** (`6g-core/upf.rs`): `UPF::forward_unknown_flow()` → `FlowAction`; lazy session establishment; control plane is a thin adaptation layer
+- [x] **SDF — Sensing Data Function** (`6g-core/sdf.rs`): 6G-new NF with no 5G equivalent; exposes ISAC RAN sensing results as a core SBI subscription service
+- [x] **NTN-aware AMF** (`6g-core/amf.rs`): `TrackingArea::Ntn { ntn_node_id, beam_id, propagation_delay: Duration }` — first-class NTN mobility in the AMF
+- [x] **NRF capability graph** (`6g-core/nrf.rs`): `NfCapability` enum + `discover_by_capability()` — replaces the 5G static endpoint table with knowledge-graph-style discovery
+- [x] **Full teardown path**: `CoreNetwork::deregister_ue()`, `release_session()`, per-session UPF bearer stats
+- [x] **AUSF / UDM**: Subscriber credential store + 5G-AKA conceptual auth flow
+- [x] **NSSF admission control**: load-based per-slice rejection (`admit_ue`, `release_ue`)
+- [ ] ONNX-based sentence transformer codec (replace `TextSemanticCodec` with real DNN encoder)
 
 ***
 
@@ -124,8 +137,11 @@ For an experiment bed, validation = reproducible, measurable results against kno
 | RIS | No RIS (direct link) | RIS-assisted link | Coverage extension in dB |
 | ISAC | Separate radar + comms | DFRC waveform | CRB (sensing) + Rate (comms) |
 | MAC scheduler | Round Robin | AI Q-learning | Throughput fairness (Jain index) |
-| Semantic comms | Raw bit transmission | Semantic encoding | Task success rate vs bandwidth |
-| NTN handover | Terrestrial-only | LEO-assisted handover | Handover latency |
+| Semantic comms | Raw bit transmission | Semantic encoding (TextSemanticCodec) | Task success rate vs bandwidth |
+| Core — teardown | 5G SA PDU teardown | `deregister_ue()` / `release_session()` | State consistency |
+| Core — user-plane-first | Pre-established session | `forward_unknown_flow()` lazy setup | First-packet latency |
+| Core — sensing | Not exposed in 5G core | SDF pub/sub | Subscription delivery rate |
+| NTN handover | Terrestrial-only | LEO-assisted handover (`TrackingArea::Ntn`) | Handover latency |
 
 Every experiment needs: **input parameters → deterministic simulation → output metrics → comparison against baseline**. Use Rust's `criterion` crate for micro-benchmarks and write a `scripts/` folder with Python/R notebooks to plot results.
 

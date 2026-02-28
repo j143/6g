@@ -63,6 +63,14 @@ Bit rate in bits per second (bps). Used at `pub fn` API boundaries wherever a ph
 
 Velocity in metres per second (m/s). Used in Doppler shift calculations in `6g-isac/detection.rs`. Constructor: `Velocity::from_m_per_s(x)`. Accessor: `as_m_per_s()`.
 
+### `Duration`
+
+Time duration in milliseconds (ms). Added as a physical-time newtype so that propagation delays, timer intervals, and handover deadlines are not expressed as bare `f64` at public API boundaries. Constructors: `Duration::from_ms(ms)`, `Duration::from_s(s)`. Accessors: `as_ms()`, `as_s()`.
+
+Used by:
+- `TrackingArea::Ntn.propagation_delay` in `6g-core/amf.rs`
+- `CoreNetwork::register_ue_ntn()` parameter
+
 ### `Payload`
 
 Type alias for `Vec<u8>`. All protocol data units flow as byte vectors; upper layers add semantic structure.
@@ -105,6 +113,10 @@ See `docs/comparison-strategy.md` for the full methodology.
 - `Frequency::from_ghz(ghz: f64) -> Frequency` — convert GHz → Hz internally
 - `Frequency::from_thz(thz: f64) -> Frequency` — convert THz → Hz internally
 - `Frequency::band(self) -> FrequencyBand` — classify by spectrum band
+- `Duration::from_ms(ms: f64) -> Duration` — wrap a millisecond value
+- `Duration::from_s(s: f64) -> Duration` — convert seconds → ms internally
+- `Duration::as_ms(self) -> f64` — extract millisecond value
+- `Duration::as_s(self) -> f64` — extract second value
 - `SystemConfig::default() -> SystemConfig` — returns a 6G-ready default config
 - `ValidationCheck::new(name, actual, expected, tolerance_pct) -> ValidationCheck`
 - `ValidationResult::passed(&self) -> bool`

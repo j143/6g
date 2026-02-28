@@ -47,7 +47,7 @@
 | `6g-pdcp`      | Ciphering, header compression           | RLC or MAC concerns             |
 | `6g-rlc`       | Segmentation, ARQ, reordering           | PDCP or MAC concerns            |
 | `6g-rrc`       | Radio resource control, mobility        | RAN-layer details               |
-| `6g-core`      | Session management, policy              | Core network functions          |
+| `6g-core`      | Session management, policy, NF registry | RAN/PHY/MAC, waveform, scheduling |
 | `6g-semantic`  | Semantic encoding/decoding              | AI model internals              |
 
 ## Dependency Graph (No Upward Dependencies Allowed)
