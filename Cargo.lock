@@ -203,7 +203,9 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "sixg-common",
+ "sixg-ntn",
  "sixg-rrc",
+ "sixg-semantic",
 ]
 
 [[package]]

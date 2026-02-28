@@ -129,7 +129,7 @@ mod tests {
         assert_eq!(forwarded, nas.len());
 
         // 3. AMF registers the UE (called by the session runner).
-        amf.register(ue, 1001);
+        amf.register_terrestrial(ue, 1001);
         assert_eq!(amf.registered_ue_count(), 1);
 
         // 4. SMF establishes a PDU session for the UE.

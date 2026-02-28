@@ -159,6 +159,36 @@ impl Velocity {
     }
 }
 
+/// Time duration in milliseconds (ms).
+///
+/// Use this at API boundaries where a delay, latency, or timer interval is
+/// expressed as a physical time quantity.  Use `from_ms` / `from_s` to
+/// construct values and `as_ms` / `as_s` to read them.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Duration(f64); // milliseconds
+
+impl Duration {
+    /// Create a `Duration` from a value in milliseconds.
+    pub fn from_ms(ms: f64) -> Self {
+        Self(ms)
+    }
+
+    /// Create a `Duration` from a value in seconds.
+    pub fn from_s(s: f64) -> Self {
+        Self(s * 1_000.0)
+    }
+
+    /// Return the duration in milliseconds.
+    pub fn as_ms(self) -> f64 {
+        self.0
+    }
+
+    /// Return the duration in seconds.
+    pub fn as_s(self) -> f64 {
+        self.0 / 1_000.0
+    }
+}
+
 /// Linear (not dB) signal-to-noise ratio: P_signal / P_noise (dimensionless).
 ///
 /// Use this at API boundaries where the SNR is expressed as a linear ratio
