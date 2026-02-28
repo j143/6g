@@ -69,6 +69,23 @@ impl Smf {
         id
     }
 
+    /// Release a PDU session, removing its record from the SMF.
+    ///
+    /// Returns `true` if the session was found and removed, `false` if unknown.
+    /// Called by `CoreNetwork::release_session()` as part of the teardown path.
+    pub fn release_session(&mut self, session_id: u8) -> bool {
+        if let Some(pos) = self
+            .sessions
+            .iter()
+            .position(|s| s.session_id == session_id)
+        {
+            self.sessions.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Return the total number of established sessions.
     pub fn session_count(&self) -> usize {
         self.sessions.len()
@@ -103,6 +120,13 @@ impl Smf {
         }
     }
 
+    /// Return all active sessions for a given UE.
+    ///
+    /// Used by `CoreNetwork::deregister_ue()` to collect session IDs for teardown.
+    pub fn sessions_for_ue(&self, ue: UeId) -> Vec<&PduSession> {
+        self.sessions.iter().filter(|s| s.ue == ue).collect()
+    }
+
     /// Number of active sessions for a given UE.
     pub fn session_count_for_ue(&self, ue: UeId) -> usize {
         self.sessions.iter().filter(|s| s.ue == ue).count()
@@ -132,6 +156,25 @@ mod tests {
         assert_eq!(smf.session_count(), 1);
         smf.establish_session(UeId(2), PduSessionType::Ethernet);
         assert_eq!(smf.session_count(), 2);
+    }
+
+    #[test]
+    fn release_session_removes_record() {
+        let mut smf = Smf::new();
+        let id = smf.establish_session(UeId(1), PduSessionType::Ip);
+        assert_eq!(smf.session_count(), 1);
+        assert!(smf.release_session(id));
+        assert_eq!(smf.session_count(), 0);
+        assert!(
+            smf.session_ip(id).is_none(),
+            "IP must be gone after release"
+        );
+    }
+
+    #[test]
+    fn release_unknown_session_returns_false() {
+        let mut smf = Smf::new();
+        assert!(!smf.release_session(99));
     }
 
     #[test]

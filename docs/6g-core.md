@@ -14,21 +14,24 @@ The 6G Core Network handles control-plane signalling for registration, session m
 - `Qci` values follow 3GPP TS 23.501 Table 5.7.4-1 standardized QoS characteristics.
 - `TrafficStats` counters are always cumulative (never reset mid-session).
 
-## Current Structure (5GC-derived baseline)
+## Current Structure (5GC-derived baseline + Phase 5 gap-closure)
 
 | NF | Key types | Role |
 |---|---|---|
-| **AMF** — Access and Mobility Management | `Amf`, `RegistrationRecord` | UE registration, authentication, tracking area management |
-| **SMF** — Session Management | `Smf`, `PduSession`, `PduSessionType` | PDU session establishment and IP address allocation |
-| **UPF** — User Plane | `Upf`, `TrafficStats` | Traffic forwarding, uplink/downlink GTP tunnelling |
-| **PCF** — Policy Control | `Pcf`, `QosPolicy`, `Qci` | QoS policy rules (GBR/MBR/delay budget per slice) |
-| **NSSF** — Network Slice Selection | `NetworkSliceSelector`, `NetworkSlice`, `SliceType` | Maps UE requests to slice identifiers (`SliceId`) |
+| **AMF** — Access and Mobility Management | `Amf`, `RegistrationRecord` | UE registration, deregistration, paging, tracking area management |
+| **SMF** — Session Management | `Smf`, `PduSession`, `PduSessionType` | PDU session establishment, IP allocation, and release |
+| **UPF** — User Plane | `Upf`, `TrafficStats` | Traffic forwarding; global + per-session bearer stats |
+| **PCF** — Policy Control | `Pcf`, `QosPolicy`, `Qci` | QoS policy rules (GBR/MBR/delay budget per slice); dynamic policy update |
+| **NSSF** — Network Slice Selection | `NetworkSliceSelector`, `NetworkSlice`, `SliceType` | Maps UE requests to slice identifiers; per-slice admission control |
+| **AUSF/UDM** — Auth Server + User Data Mgmt | `Ausf`, `Udm`, `SubscriberCredential`, `AuthVector` | Subscriber credential store + 5G-AKA conceptual auth vector derivation |
+| **NRF** — Network Repository Function | `Nrf`, `NfProfile`, `NfType` | NF discovery: register, deregister, discover by type (3GPP TS 29.510) |
 
 ## What This Crate Does NOT Do
 
 - Does not implement the RAN PHY layer (no MAC, waveform, or channel model logic).
 - Does not implement the UE side of NAS — this is the network-side only.
 - Does not depend on `6g-phy`, `6g-mac`, or `6g-rlc`.
+- Does not implement a full NEF northbound API.
 
 ## 6G Architectural Direction (Phase 4 — Implemented)
 

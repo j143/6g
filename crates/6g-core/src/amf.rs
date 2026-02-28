@@ -56,6 +56,34 @@ impl Amf {
         }
     }
 
+    /// Deregister a UE — removes its registration record from the AMF.
+    ///
+    /// Returns `true` if the UE was found and removed, `false` if unknown.
+    pub fn deregister(&mut self, ue: UeId) -> bool {
+        if let Some(pos) = self.registrations.iter().position(|r| r.ue == ue) {
+            self.registrations.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Page a UE — returns `true` if the UE has a registration record.
+    ///
+    /// A real AMF would send a paging message over N2 to all cells in the UE's
+    /// tracking area.  Here we return whether the UE is currently registered,
+    /// which is the precondition for any paging attempt.
+    pub fn page_ue(&self, ue: UeId) -> bool {
+        self.registrations.iter().any(|r| r.ue == ue)
+    }
+
+    /// Return `true` if the UE has an active (authenticated) registration.
+    pub fn is_registered(&self, ue: UeId) -> bool {
+        self.registrations
+            .iter()
+            .any(|r| r.ue == ue && r.authenticated)
+    }
+
     pub fn registered_ue_count(&self) -> usize {
         self.registrations.len()
     }
@@ -83,5 +111,30 @@ mod tests {
         assert_eq!(amf.registered_ue_count(), 1);
         amf.authenticate(UeId(42));
         assert!(amf.registrations[0].authenticated);
+    }
+
+    #[test]
+    fn deregister_removes_ue() {
+        let mut amf = Amf::new();
+        amf.register(UeId(1), 1001);
+        amf.authenticate(UeId(1));
+        assert!(amf.is_registered(UeId(1)));
+        assert!(amf.deregister(UeId(1)));
+        assert_eq!(amf.registered_ue_count(), 0);
+        assert!(!amf.is_registered(UeId(1)));
+    }
+
+    #[test]
+    fn page_ue_returns_true_for_known_ue() {
+        let mut amf = Amf::new();
+        amf.register(UeId(5), 2000);
+        assert!(amf.page_ue(UeId(5)));
+        assert!(!amf.page_ue(UeId(99)));
+    }
+
+    #[test]
+    fn deregister_unknown_ue_returns_false() {
+        let mut amf = Amf::new();
+        assert!(!amf.deregister(UeId(42)));
     }
 }

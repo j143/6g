@@ -18,14 +18,20 @@
 //! * [`sba_v2`] – Service-Based Architecture v2 (flat inline-auth registry)
 //! * [`digital_twin`] – Digital Twin snapshot + diff mechanism
 //! * [`gnb`] – `GnbNode` bridging RRC/PDCP layers to N2/N3 core interfaces
+//!
+//! Phase 5 gap-closure:
+//! * [`ausf`] – AUSF + UDM: subscriber credential store + 5G-AKA auth vectors
+//! * [`nrf`]  – NRF: NF registration, deregistration, and discovery
 
 use std::net::Ipv4Addr;
 
 use sixg_common::types::{Bitrate, UeId};
 
 pub mod amf;
+pub mod ausf;
 pub mod digital_twin;
 pub mod gnb;
+pub mod nrf;
 pub mod nssf;
 pub mod pcf;
 pub mod sba_v2;
@@ -33,8 +39,10 @@ pub mod smf;
 pub mod upf;
 
 pub use amf::Amf;
+pub use ausf::{Ausf, SubscriberCredential, Udm};
 pub use digital_twin::DigitalTwin;
 pub use gnb::GnbNode;
+pub use nrf::{NfProfile, NfType, Nrf};
 pub use nssf::{NetworkSliceSelector, SliceType};
 pub use pcf::Pcf;
 pub use sba_v2::SbaV2Registry;
@@ -56,7 +64,7 @@ pub struct SessionGrant {
     pub gbr: Bitrate,
 }
 
-/// 6G Core Network instance bundling all mandatory NFs and Phase 4 extensions.
+/// 6G Core Network instance bundling all mandatory NFs and Phase 4/5 extensions.
 pub struct CoreNetwork {
     /// 5GC-derived baseline: Access and Mobility Management Function.
     pub amf: Amf,
@@ -72,6 +80,10 @@ pub struct CoreNetwork {
     pub sba_v2: SbaV2Registry,
     /// Phase 4: Digital twin — state-snapshot + diff engine.
     pub digital_twin: DigitalTwin,
+    /// Phase 5: AUSF — authentication server with UDM subscriber store.
+    pub ausf: Ausf,
+    /// Phase 5: NRF — NF registration and discovery.
+    pub nrf: Nrf,
 }
 
 impl CoreNetwork {
@@ -85,6 +97,8 @@ impl CoreNetwork {
             nssf: NetworkSliceSelector::new(),
             sba_v2: SbaV2Registry::new(),
             digital_twin: DigitalTwin::new(),
+            ausf: Ausf::new(),
+            nrf: Nrf::new(),
         }
     }
 
@@ -110,6 +124,36 @@ impl CoreNetwork {
             self.push_snapshot();
         }
         granted
+    }
+
+    /// Deregister a UE — tears down all AMF, SBAv2, and SMF state.
+    ///
+    /// Steps:
+    /// 1. All active PDU sessions for the UE are released via SMF and UPF.
+    /// 2. The AMF registration record is removed.
+    /// 3. The SBAv2 validated-registration entry is cleared.
+    /// 4. The Digital Twin is updated to reflect the deregistration.
+    ///
+    /// Returns `true` if the UE had an active registration that was removed.
+    pub fn deregister_ue(&mut self, ue: UeId) -> bool {
+        if !self.amf.is_registered(ue) {
+            return false;
+        }
+        // Collect all session IDs for this UE, then release them.
+        let session_ids: Vec<u8> = self
+            .smf
+            .sessions_for_ue(ue)
+            .iter()
+            .map(|s| s.session_id)
+            .collect();
+        for sid in session_ids {
+            self.smf.release_session(sid);
+            self.upf.release_bearer(sid);
+        }
+        self.amf.deregister(ue);
+        self.sba_v2.deregister(ue);
+        self.push_snapshot();
+        true
     }
 
     /// Establish a PDU session: NSSF slice selection → SMF → UPF → PCF.
@@ -157,6 +201,18 @@ impl CoreNetwork {
             qci,
             gbr,
         })
+    }
+
+    /// Release a PDU session — tears down the SMF session and UPF bearer.
+    ///
+    /// Returns `true` if the session was found and released.
+    pub fn release_session(&mut self, session_id: u8) -> bool {
+        let released = self.smf.release_session(session_id);
+        if released {
+            self.upf.release_bearer(session_id);
+            self.push_snapshot();
+        }
+        released
     }
 
     /// Push the current network state into the Digital Twin and return the diff.
@@ -212,6 +268,13 @@ mod tests {
     }
 
     #[test]
+    fn core_network_initialises_with_phase5_components() {
+        let core = CoreNetwork::new();
+        assert_eq!(core.ausf.subscriber_count(), 0);
+        assert_eq!(core.nrf.active_count(), 0);
+    }
+
+    #[test]
     fn register_ue_via_sbav2_succeeds_and_updates_twin() {
         let mut core = CoreNetwork::new();
         let ue = UeId(7);
@@ -262,5 +325,46 @@ mod tests {
         let _ = diff;
         let snap = core.digital_twin.current().unwrap();
         assert_eq!(snap.ues.len(), 1);
+    }
+
+    #[test]
+    fn deregister_ue_tears_down_amf_smf_upf() {
+        let mut core = CoreNetwork::new();
+        let ue = UeId(10);
+        assert!(core.register_ue(ue, 1000));
+        let grant = core
+            .establish_session(ue, SliceType::EMbb, PduSessionType::Ip)
+            .unwrap();
+
+        assert_eq!(core.smf.session_count(), 1);
+        assert!(core.deregister_ue(ue), "deregister must succeed");
+        // AMF record removed.
+        assert_eq!(core.amf.registered_ue_count(), 0);
+        // SMF session removed.
+        assert_eq!(core.smf.session_count(), 0);
+        // UPF bearer removed.
+        assert!(core.upf.session_stats(grant.session_id).is_none());
+        // Digital Twin updated.
+        assert!(core.digital_twin.snapshot_count() >= 3);
+    }
+
+    #[test]
+    fn release_session_removes_smf_and_upf_bearer() {
+        let mut core = CoreNetwork::new();
+        let ue = UeId(20);
+        assert!(core.register_ue(ue, 2000));
+        let grant = core
+            .establish_session(ue, SliceType::Urllc, PduSessionType::Ip)
+            .unwrap();
+
+        assert!(core.release_session(grant.session_id));
+        assert_eq!(core.smf.session_count(), 0);
+        assert!(core.upf.session_stats(grant.session_id).is_none());
+    }
+
+    #[test]
+    fn deregister_unknown_ue_returns_false() {
+        let mut core = CoreNetwork::new();
+        assert!(!core.deregister_ue(UeId(999)));
     }
 }

@@ -82,6 +82,24 @@ impl SbaV2Registry {
         valid
     }
 
+    /// Deregister a UE — marks its most recent validated registration as inactive.
+    ///
+    /// Returns `true` if a validated registration for `ue` was found.
+    /// The registration record is retained for audit purposes.
+    pub fn deregister(&mut self, ue: UeId) -> bool {
+        if let Some(reg) = self
+            .registrations
+            .iter_mut()
+            .rev()
+            .find(|r| r.ue == ue && r.token_validated)
+        {
+            reg.token_validated = false;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Number of UEs that have passed inline token validation.
     pub fn validated_ue_count(&self) -> usize {
         self.registrations
@@ -174,6 +192,24 @@ mod tests {
         registry.register_with_token(UeId(2), ServiceToken([0x00; 16])); // invalid
         assert_eq!(registry.registration_count(), 2);
         assert_eq!(registry.validated_ue_count(), 1);
+    }
+
+    #[test]
+    fn deregister_reduces_validated_count() {
+        let mut registry = SbaV2Registry::new();
+        let ue = UeId(5);
+        registry.register_with_token(ue, ServiceToken::from_ue_id(ue));
+        assert_eq!(registry.validated_ue_count(), 1);
+        assert!(registry.deregister(ue));
+        assert_eq!(registry.validated_ue_count(), 0);
+        // Record is retained.
+        assert_eq!(registry.registration_count(), 1);
+    }
+
+    #[test]
+    fn deregister_unknown_ue_returns_false() {
+        let mut registry = SbaV2Registry::new();
+        assert!(!registry.deregister(UeId(99)));
     }
 
     #[test]
