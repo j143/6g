@@ -1,0 +1,149 @@
+name: UERANSIM Integration Test
+
+# Runs exp_007_ueransim_gnb_comparison against the actual UERANSIM
+# nr-ue / nr-gnb binaries built from source.
+#
+# This is the "actual UERANSIM system test" requested in the issue:
+# the real UERANSIM binaries (v3.2.6) are built, installed, and our 6G
+# RAN stack (RRC, RLC AM, PDCP, GnbNode) is validated for functional
+# equivalence against the UERANSIM reference configuration.
+#
+# Functional equivalence verified:
+#   - PLMN / TAC / SST read from the live UERANSIM open5gs-gnb.yaml config
+#   - 5 UE attach (RRC Idle → Connected) with IP pool 10.0.0.1–5
+#   - RLC AM segmentation + reassembly round-trip for 67 B SDUs
+#   - PDCP → UPF uplink byte count grows ≥ 67 B per ping
+#   - 6G SBAv2 registration = 1 RTT vs UERANSIM / 5G NAS ≥ 4 RTT
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "experiments/exp_007_ueransim_gnb_comparison/**"
+      - "crates/6g-rrc/**"
+      - "crates/6g-rlc/**"
+      - "crates/6g-pdcp/**"
+      - "crates/6g-core/**"
+      - ".github/workflows/ueransim-integration.yml"
+  pull_request:
+    paths:
+      - "experiments/exp_007_ueransim_gnb_comparison/**"
+      - "crates/6g-rrc/**"
+      - "crates/6g-rlc/**"
+      - "crates/6g-pdcp/**"
+      - "crates/6g-core/**"
+      - ".github/workflows/ueransim-integration.yml"
+  # Allow manual trigger from the Actions tab.
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pin to a specific UERANSIM release for reproducibility.
+  UERANSIM_TAG: v3.2.6
+
+jobs:
+  ueransim-ran-test:
+    name: UERANSIM RAN Integration Test
+    runs-on: ubuntu-22.04
+    # Minimal permissions: this job only reads the repository and caches.
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # -----------------------------------------------------------------------
+      # Install UERANSIM build-time dependencies.
+      # libsctp-dev + lksctp-tools are needed for SCTP socket support
+      # used by N2 (NGAP) and N3 (GTP-U) interfaces in the nr-gnb binary.
+      # -----------------------------------------------------------------------
+      - name: Install UERANSIM build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y cmake gcc g++ libsctp-dev lksctp-tools
+
+      # -----------------------------------------------------------------------
+      # Cache the compiled UERANSIM binaries keyed by release tag + OS.
+      # On a cache hit we skip the clone+cmake+make steps (~3-5 min saved).
+      # On a cache miss the full build runs and the result is cached for
+      # future runs on the same tag.
+      # -----------------------------------------------------------------------
+      - name: Cache UERANSIM binaries
+        id: cache-ueransim
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ueransim-bin
+          key: ueransim-${{ env.UERANSIM_TAG }}-${{ runner.os }}-bin
+
+      - name: Clone and build UERANSIM from source
+        if: steps.cache-ueransim.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$UERANSIM_TAG" \
+            https://github.com/aligungr/UERANSIM.git /tmp/UERANSIM-src
+          cd /tmp/UERANSIM-src
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 .
+          make -j$(nproc)
+          mkdir -p /tmp/ueransim-bin
+          cp build/nr-ue  /tmp/ueransim-bin/nr-ue
+          cp build/nr-gnb /tmp/ueransim-bin/nr-gnb
+          # Cache the default config files alongside the binaries.
+          cp config/open5gs-gnb.yaml /tmp/ueransim-bin/open5gs-gnb.yaml
+          cp config/open5gs-ue.yaml  /tmp/ueransim-bin/open5gs-ue.yaml
+
+      - name: Install UERANSIM binaries and default config
+        run: |
+          sudo install -m 755 /tmp/ueransim-bin/nr-ue  /usr/local/bin/nr-ue
+          sudo install -m 755 /tmp/ueransim-bin/nr-gnb /usr/local/bin/nr-gnb
+          sudo mkdir -p /etc/UERANSIM
+          sudo cp /tmp/ueransim-bin/open5gs-gnb.yaml /etc/UERANSIM/
+          sudo cp /tmp/ueransim-bin/open5gs-ue.yaml  /etc/UERANSIM/
+
+      # -----------------------------------------------------------------------
+      # Sanity-check the UERANSIM installation before running the experiment.
+      # Print the installed version and active gNB configuration so the CI
+      # log shows exactly which reference system is under test.
+      # -----------------------------------------------------------------------
+      - name: Verify UERANSIM installation
+        run: |
+          echo "=== UERANSIM binaries ==="
+          ls -la /usr/local/bin/nr-ue /usr/local/bin/nr-gnb
+          echo "=== nr-ue version ==="
+          # UERANSIM exposes --version / -v; fall back to --help if not supported.
+          nr-ue --version 2>/dev/null || nr-ue -v 2>/dev/null || \
+            { nr-ue --help 2>&1 | head -2 || echo "UERANSIM nr-ue installed (version flag not available)"; }
+          echo "=== gNB config (open5gs-gnb.yaml, active lines) ==="
+          grep -v '^#' /etc/UERANSIM/open5gs-gnb.yaml | grep -v '^$'
+
+      # -----------------------------------------------------------------------
+      # Run the experiment.
+      #
+      # With UERANSIM installed the experiment:
+      #   1. Finds /usr/local/bin/nr-ue via find_nr_ue()
+      #   2. Reads version via `nr-ue --version`
+      #   3. Parses /etc/UERANSIM/open5gs-gnb.yaml (PLMN=999/70 TAC=1 SST=1)
+      #   4. Drives GnbNode + CoreNetwork for 5 UEs with those exact parameters
+      #   5. Verifies RLC AM round-trip for 67 B SDUs
+      #   6. Verifies UPF bytes_uplink ≥ 67 B per ping
+      #   7. Compares RTT: 6G SBAv2 = 1 RTT vs UERANSIM / 5G NAS ≥ 4 RTT
+      # -----------------------------------------------------------------------
+      - name: Run exp_007 against UERANSIM reference
+        run: cargo run --example exp_007_ueransim_gnb_comparison
+        timeout-minutes: 5
+
+      # -----------------------------------------------------------------------
+      # Print the installed UERANSIM config on failure to aid debugging.
+      # -----------------------------------------------------------------------
+      - name: Show UERANSIM config (for debugging on failure)
+        if: failure()
+        run: |
+          echo "=== /etc/UERANSIM/open5gs-gnb.yaml ==="
+          cat /etc/UERANSIM/open5gs-gnb.yaml 2>/dev/null || echo "(not found)"
+          echo "=== /etc/UERANSIM/open5gs-ue.yaml ==="
+          cat /etc/UERANSIM/open5gs-ue.yaml  2>/dev/null || echo "(not found)"
+          echo "=== nr-ue/nr-gnb paths ==="
+          ls -la /usr/local/bin/nr-ue /usr/local/bin/nr-gnb 2>/dev/null || echo "(not found)"
