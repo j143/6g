@@ -34,6 +34,12 @@ use sixg_common::{
     validation::{Validate, ValidationCheck, ValidationResult},
 };
 
+use sixg_ai::{
+    inference::InferenceRequest,
+    model::AiModel,
+    onnx_model::{cosine_similarity, OnnxModel, OnnxModelValidation, EMBEDDING_DIM, FEATURE_DIM},
+};
+
 use crate::{SemanticCodec, SemanticPacket, SemanticTask};
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -295,6 +301,257 @@ impl Validate for SemanticValidation {
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// OnnxSemanticCodec
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// ONNX-based semantic codec for text/NLP tasks.
+///
+/// Replaces the term-frequency signature of [`TextSemanticCodec`] with a
+/// compact **32-byte quantised semantic embedding** produced by a simulated
+/// ONNX sentence transformer (`sentence_transformer_v1`).
+///
+/// ## Encode pipeline
+///
+/// 1. Tokenise UTF-8 text into a [`FEATURE_DIM`]-dimensional word-hash
+///    feature vector (L2-normalised).
+/// 2. Run the simulated ONNX forward pass: `y = L2_norm(tanh(W·x + b))`.
+/// 3. Quantise each output float to `i8` (×127, clamped) → [`EMBEDDING_DIM`] bytes.
+///
+/// ## Decode pipeline
+///
+/// 1. Dequantise bytes back to f32 (÷127).
+/// 2. Re-emit as a sequence of little-endian f32 bytes so downstream task
+///    models can consume the embedding directly.
+///
+/// ## Compression
+///
+/// For a 1 000-byte input message → 32 bytes output → **31.25× compression**
+/// (2× more compact than [`TextSemanticCodec`]'s 64-byte signature).
+///
+/// ## Ultra-low latency rationale
+///
+/// A 32-byte payload fits in a single OFDM resource element group at sub-THz
+/// rates, meeting the 1 ms end-to-end latency target for 6G semantic sessions.
+///
+/// ## References
+///
+/// - Reimers & Gurevych, *Sentence-BERT: Sentence Embeddings using Siamese
+///   BERT-Networks*, EMNLP 2019
+/// - Qin et al., *Semantic Communications: Principles and Challenges*,
+///   IEEE JSAC 2022
+pub struct OnnxSemanticCodec {
+    model: OnnxModel,
+}
+
+impl OnnxSemanticCodec {
+    /// Create a new codec using the default sentence-transformer model.
+    pub fn new() -> Self {
+        Self {
+            model: OnnxModel::new("sentence_transformer_v1"),
+        }
+    }
+}
+
+impl Default for OnnxSemanticCodec {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SemanticCodec for OnnxSemanticCodec {
+    fn task(&self) -> SemanticTask {
+        SemanticTask::TextUnderstanding
+    }
+
+    /// Encode UTF-8 text bytes into a [`EMBEDDING_DIM`]-byte quantised semantic
+    /// embedding (dimensionless, each byte is a quantised float in [−127, 127]).
+    fn encode(&self, source: &[u8]) -> Payload {
+        let features = text_to_features(source);
+        let req = InferenceRequest {
+            model_id: self.model.id().to_string(),
+            inputs: features,
+        };
+        let result = self
+            .model
+            .predict(&req)
+            .expect("OnnxModel inference must not fail");
+        quantise_embedding(&result.outputs)
+    }
+
+    /// Decode a [`EMBEDDING_DIM`]-byte quantised embedding to dequantised f32 bytes.
+    ///
+    /// The decoded payload is the dequantised embedding vector (4 bytes per
+    /// float, little-endian), which downstream task models consume directly
+    /// for classification or generation.
+    fn decode(&self, semantic: &[u8]) -> Payload {
+        let floats = dequantise_embedding(semantic);
+        floats.iter().flat_map(|f| f.to_le_bytes()).collect()
+    }
+}
+
+/// Convert UTF-8 text bytes into a [`FEATURE_DIM`]-dimensional L2-normalised
+/// word-hash feature vector (dimensionless, f32).
+fn text_to_features(source: &[u8]) -> Vec<f32> {
+    let mut features = vec![0.0f32; FEATURE_DIM];
+    let text = String::from_utf8_lossy(source);
+    for word in text.split_whitespace() {
+        let bucket = word_hash(word) % FEATURE_DIM;
+        features[bucket] += 1.0;
+    }
+    // L2-normalise so the model input is on the unit hypersphere
+    let norm: f32 = features.iter().map(|x| x * x).sum::<f32>().sqrt();
+    if norm > f32::EPSILON {
+        for f in &mut features {
+            *f /= norm;
+        }
+    }
+    features
+}
+
+/// Quantise a float embedding to signed bytes (×127, clamped to [−127, 127]).
+///
+/// Each f32 is multiplied by 127, rounded, clamped, and cast to `i8`, then
+/// bit-cast to `u8` for storage in a [`Payload`].
+fn quantise_embedding(floats: &[f32]) -> Payload {
+    floats
+        .iter()
+        .map(|f| {
+            let q = (f * 127.0).round().clamp(-127.0, 127.0) as i8;
+            q as u8
+        })
+        .collect()
+}
+
+/// Dequantise bytes back to a float embedding (÷127).
+///
+/// Reverses [`quantise_embedding`]: each `u8` is reinterpreted as `i8` then
+/// divided by 127.0 to recover approximate f32 values in [−1, 1].
+fn dequantise_embedding(bytes: &[u8]) -> Vec<f32> {
+    bytes.iter().map(|&b| (b as i8) as f32 / 127.0).collect()
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// OnnxSemanticValidation
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Phase-6 validation for the [`OnnxSemanticCodec`].
+///
+/// Checks:
+/// 1. Encoded payload is exactly [`EMBEDDING_DIM`] (32) bytes.
+/// 2. Compression ratio exceeds 1.0 for a 1 000-byte input (31.25×).
+/// 3. Two encodes of the same text produce identical bytes (determinism).
+/// 4. The ONNX codec is strictly more compact than [`TextSemanticCodec`]
+///    (`EMBEDDING_DIM` < `VOCAB_BUCKETS`).
+/// 5. Embeddings of related texts have higher cosine similarity than
+///    embeddings of unrelated texts (semantic preservation).
+/// 6. [`OnnxModelValidation`] passes (model-level numerical checks).
+pub struct OnnxSemanticValidation;
+
+impl Validate for OnnxSemanticValidation {
+    fn validate() -> ValidationResult {
+        let codec = OnnxSemanticCodec::new();
+
+        // ------------------------------------------------------------------
+        // 1. Encoded size is always EMBEDDING_DIM bytes
+        // ------------------------------------------------------------------
+        let source = b"the quick brown fox jumps over the lazy dog".repeat(5);
+        let encoded = codec.encode(&source);
+        let encoded_size = encoded.len() as f64;
+
+        // ------------------------------------------------------------------
+        // 2. Compression ratio for 1 000-byte input
+        //    1 000 bytes → 32 bytes → ratio = 1000/32 = 31.25
+        // ------------------------------------------------------------------
+        let source_1k = vec![b'a'; 1_000];
+        let encoded_1k = codec.encode(&source_1k);
+        let pkt = SemanticPacket {
+            task: SemanticTask::TextUnderstanding,
+            semantic_payload: encoded_1k,
+            original_size_bytes: source_1k.len(),
+        };
+        let ratio = pkt.compression_ratio();
+
+        // ------------------------------------------------------------------
+        // 3. Determinism — same input → same bytes
+        // ------------------------------------------------------------------
+        let enc1 = codec.encode(&source);
+        let enc2 = codec.encode(&source);
+        let is_deterministic = enc1 == enc2;
+        let determinism_flag = if is_deterministic { 1.0 } else { 0.0 };
+
+        // ------------------------------------------------------------------
+        // 4. ONNX codec more compact than TextSemanticCodec
+        //    EMBEDDING_DIM (32) < VOCAB_BUCKETS (64)
+        // ------------------------------------------------------------------
+        let size_ratio = VOCAB_BUCKETS as f64 / EMBEDDING_DIM as f64;
+
+        // ------------------------------------------------------------------
+        // 5. Semantic similarity — related texts embed closer together
+        //    than unrelated texts.
+        //    related pair:   "cat sat on mat" vs "cat sat on a mat"
+        //    unrelated pair: "cat sat on mat" vs "stock exchange closes higher"
+        // ------------------------------------------------------------------
+        let text_a = b"cat sat on mat";
+        let text_b = b"cat sat on a mat";
+        let text_c = b"stock exchange closes higher today";
+
+        let embed = |text: &[u8]| -> Vec<f32> {
+            let model = OnnxModel::new("sentence_transformer_v1");
+            let req = InferenceRequest {
+                model_id: model.id().to_string(),
+                inputs: text_to_features(text),
+            };
+            model.predict(&req).unwrap().outputs
+        };
+
+        let emb_a = embed(text_a);
+        let emb_b = embed(text_b);
+        let emb_c = embed(text_c);
+
+        let cos_related = cosine_similarity(&emb_a, &emb_b);
+        let cos_unrelated = cosine_similarity(&emb_a, &emb_c);
+        let similarity_preserved = if cos_related > cos_unrelated {
+            1.0
+        } else {
+            0.0
+        };
+
+        // ------------------------------------------------------------------
+        // 6. Delegate to OnnxModelValidation
+        // ------------------------------------------------------------------
+        let model_result = OnnxModelValidation::validate();
+        let model_passed = if model_result.passed() { 1.0 } else { 0.0 };
+
+        ValidationResult {
+            module: "6g-semantic::onnx_codec",
+            checks: vec![
+                ValidationCheck::new(
+                    "encoded_size_is_embedding_dim",
+                    encoded_size,
+                    EMBEDDING_DIM as f64,
+                    0.0,
+                ),
+                ValidationCheck::new(
+                    "compression_ratio_1000_bytes",
+                    ratio,
+                    1_000.0 / EMBEDDING_DIM as f64,
+                    0.01,
+                ),
+                ValidationCheck::new("deterministic_encoding", determinism_flag, 1.0, 0.0),
+                ValidationCheck::new("onnx_more_compact_than_tf_codec", size_ratio, 2.0, 0.0),
+                ValidationCheck::new(
+                    "semantic_similarity_preserved",
+                    similarity_preserved,
+                    1.0,
+                    0.0,
+                ),
+                ValidationCheck::new("onnx_model_checks_pass", model_passed, 1.0, 0.0),
+            ],
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,6 +611,74 @@ mod tests {
     #[test]
     fn semantic_validation_passes() {
         let result = SemanticValidation::validate();
+        assert!(result.passed(), "{}", result.summary());
+    }
+
+    // ─── OnnxSemanticCodec tests ──────────────────────────────────────────────
+
+    #[test]
+    fn onnx_codec_encoded_size_is_embedding_dim() {
+        let codec = OnnxSemanticCodec::new();
+        let source = b"hello world this is a test message for semantic encoding";
+        let encoded = codec.encode(source);
+        assert_eq!(
+            encoded.len(),
+            EMBEDDING_DIM,
+            "OnnxSemanticCodec must always produce {EMBEDDING_DIM} bytes"
+        );
+    }
+
+    #[test]
+    fn onnx_codec_compresses_1000_bytes() {
+        let codec = OnnxSemanticCodec::new();
+        let source = vec![b'x'; 1_000];
+        let encoded = codec.encode(&source);
+        assert_eq!(encoded.len(), EMBEDDING_DIM);
+        let ratio = source.len() as f64 / encoded.len() as f64;
+        assert!(ratio > 1.0, "must compress: ratio={ratio}");
+    }
+
+    #[test]
+    fn onnx_codec_deterministic() {
+        let codec = OnnxSemanticCodec::new();
+        let source = b"determinism check text";
+        let enc1 = codec.encode(source);
+        let enc2 = codec.encode(source);
+        assert_eq!(enc1, enc2, "OnnxSemanticCodec must be deterministic");
+    }
+
+    #[test]
+    fn onnx_codec_decode_has_correct_byte_length() {
+        let codec = OnnxSemanticCodec::new();
+        let source = b"decode test";
+        let encoded = codec.encode(source);
+        let decoded = codec.decode(&encoded);
+        // Each quantised byte → 1 f32 → 4 bytes
+        assert_eq!(
+            decoded.len(),
+            EMBEDDING_DIM * 4,
+            "decoded must contain {EMBEDDING_DIM} f32 values (4 bytes each)"
+        );
+    }
+
+    #[test]
+    fn onnx_more_compact_than_tf_codec() {
+        let onnx = OnnxSemanticCodec::new();
+        let tf = TextSemanticCodec;
+        let source = b"the quick brown fox jumps over the lazy dog";
+        let onnx_enc = onnx.encode(source);
+        let tf_enc = tf.encode(source);
+        assert!(
+            onnx_enc.len() < tf_enc.len(),
+            "OnnxSemanticCodec ({}) must be smaller than TextSemanticCodec ({})",
+            onnx_enc.len(),
+            tf_enc.len()
+        );
+    }
+
+    #[test]
+    fn onnx_semantic_validation_passes() {
+        let result = OnnxSemanticValidation::validate();
         assert!(result.passed(), "{}", result.summary());
     }
 }

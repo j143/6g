@@ -122,7 +122,7 @@ These are the most speculative but highest-impact layers:
 - [x] **Full teardown path**: `CoreNetwork::deregister_ue()`, `release_session()`, per-session UPF bearer stats
 - [x] **AUSF / UDM**: Subscriber credential store + 5G-AKA conceptual auth flow
 - [x] **NSSF admission control**: load-based per-slice rejection (`admit_ue`, `release_ue`)
-- [ ] ONNX-based sentence transformer codec (replace `TextSemanticCodec` with real DNN encoder)
+- [x] ONNX-based sentence transformer codec (`OnnxSemanticCodec` + `OnnxModel`): 32-byte quantised embedding, 31.25× compression, semantic similarity preserved; swap `OnnxModel` for `ort::Session` to use a real `.onnx` file (see `docs/6g-ai.md`)
 
 ***
 

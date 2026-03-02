@@ -88,6 +88,15 @@ Success criterion: semantic encoding achieves the same classification accuracy a
 - `GoalOrientedMetrics` — raw/JPEG/semantic task-success models and sweep helper.
 - `SemanticValidation` — `Validate` implementation for Phase 5 semantic checks.
 
+## Phase 6 Implemented Types (ONNX Semantic Codec)
+
+- `OnnxSemanticCodec` — ONNX-based semantic codec using the simulated sentence
+  transformer from `6g-ai`. Encodes UTF-8 text to a 32-byte quantised embedding
+  (31.25× compression for 1 kB input). Ready for real ONNX runtime swap-in.
+- `OnnxSemanticValidation` — `Validate` implementation: checks encoded size,
+  compression ratio, determinism, size vs `TextSemanticCodec`, semantic similarity
+  preservation, and delegates to `OnnxModelValidation`.
+
 ## Reasoning Depth (Phase 5 Semantic Layer)
 
 1. **5G baseline:** bit-accurate transport plus traditional codecs (e.g., JPEG) evaluated via BER/packet metrics.

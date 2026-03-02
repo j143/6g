@@ -12,6 +12,7 @@
 pub mod channel_estimator;
 pub mod inference;
 pub mod model;
+pub mod onnx_model;
 
 pub use inference::{InferenceRequest, InferenceResult};
 pub use model::{AiBackend, AiModel};

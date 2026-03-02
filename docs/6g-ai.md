@@ -66,6 +66,38 @@ AI-native air interface is a core design principle in the 6G vision (Qualcomm AI
 - `MlpEstimator` — 6G AI-native estimator (learned residual correction on top of MMSE).
 - `ChannelEstimatorValidation` — `Validate` implementation for known numerical checks.
 
+## Phase 6 Implemented Types (ONNX Sentence Transformer)
+
+- `OnnxModel` — simulated ONNX sentence-transformer model implementing `AiModel`.
+  Inputs: 128-dim word-hash feature vector (f32). Outputs: 32-dim L2-normalised
+  semantic embedding (f32). Weights initialised deterministically from model-id
+  via FNV-1a hash. Ready to swap in `ort::Session` for a real `.onnx` file.
+- `OnnxModelValidation` — `Validate` implementation: checks output dimension,
+  L2-normalisation, determinism, and self cosine-similarity.
+- `EMBEDDING_DIM` — public constant (32): number of output floats.
+- `FEATURE_DIM` — public constant (128): number of input word-hash buckets.
+- `cosine_similarity` — cosine similarity between two f32 embedding vectors (dimensionless, ∈ [−1, 1]).
+
+## How to Swap in a Real ONNX Model
+
+When `libonnxruntime` and a pre-trained `.onnx` file are available:
+
+```rust
+// 1. Add `ort = "2"` to [dependencies] in crates/6g-ai/Cargo.toml
+// 2. Replace OnnxModel::forward() with:
+use ort::{Environment, Session, SessionBuilder, Value};
+
+let env = Environment::builder().build()?;
+let session = SessionBuilder::new(&env)?
+    .with_model_from_file("models/all-MiniLM-L6-v2.onnx")?;
+let input = Value::from_array(ndarray::Array2::from_shape_vec((1, 128), features)?)?;
+let outputs = session.run(vec![input])?;
+let embedding: Vec<f32> = outputs[0].try_extract::<f32>()?.view().iter().cloned().collect();
+```
+
+Recommended model: `sentence-transformers/all-MiniLM-L6-v2` (22 MB, 384-dim output,
+reducible to 32-dim via PCA). Suitable for ultra-low latency 6G semantic sessions.
+
 ## Reasoning Depth (Phase 5 Channel Estimation)
 
 1. **5G baseline:** LS/MMSE channel estimation with analytical NMSE curves.
