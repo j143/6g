@@ -160,7 +160,7 @@ Every experiment needs: **input parameters → deterministic simulation → outp
 - IEEE ComSoc 6G roadmap papers (2021-2023)
 
 **During ISAC Phase:**
-- Liu et al., "Dual-Functional Radar-Communication Waveform Design," IEEE JSAC 2018
+- Liu, F. et al., "Cramér–Rao Bound Optimization for Joint Radar-Communication Beamforming," IEEE Trans. Signal Process. 2018, DOI: 10.1109/TSP.2018.2864261
 - 3GPP TR 22.837 — ISAC study item (even though 5G-era, defines sensing use cases)
 
 **During Core Network Phase:**
@@ -217,7 +217,7 @@ Key real-system targets, in priority order:
 | PHY | Vienna 5G LLS | BER vs Eb/N0 for OTFS |
 | MAC | ns-3 NR (5G-LENA) | Jain fairness index at 20 UEs |
 | MAC | OAI 5G SA traces | HARQ BLER vs SNR |
-| ISAC | Liu et al. Table II (IEEE JSAC 2018) | CRB vs sensing power ratio |
+| ISAC | Liu et al. Table II (IEEE TSP 2018) | CRB vs sensing power ratio |
 | System | srsRAN 5G SA | End-to-end throughput / latency |
 
 Given this is a solo research project that you might publish or use for PhD work:

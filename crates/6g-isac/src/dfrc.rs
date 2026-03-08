@@ -3,7 +3,9 @@
 //! KEY TYPES DEFINED: `DfrcConfig`, `ParetoPoint`
 //! KEY TYPES USED: none from other crates (pure math module)
 //! PAPER: Kay, "Fundamentals of Statistical Signal Processing", Vol I, Ch 3;
-//!        Liu et al., IEEE J. Sel. Areas Commun. 2018.
+//!        Liu et al., "Cramér–Rao Bound Optimization for Joint Radar-Communication
+//!        Beamforming", IEEE Trans. Signal Process., 2018,
+//!        DOI: 10.1109/TSP.2018.2864261.
 //! VALIDATED: `crb_range_m2()` matches Kay eq. 3.31 at B=1 GHz, γ=1 → 1.14e-3 m²
 //! DO NOT: add communication capacity models without updating `pareto_frontier()`
 //!
@@ -26,22 +28,49 @@
 //!
 //! ## Cramér-Rao Bound (CRB) for Range Estimation
 //!
-//! For a wideband waveform with bandwidth `B` Hz and sensing SNR `γ_s`, the
-//! CRB on the variance of any unbiased range estimator is (Kay, SPSS Vol. I):
+//! This module uses a **simplified SISO time-delay CRB** (Kay, SPSS Vol. I,
+//! eq. 3.31) as an approximate scalar bound for range estimation.  This is
+//! **not** the full MIMO CRB derived by Liu et al. (which accounts for antenna
+//! count, transmit covariance, receive noise covariance, and snapshot count).
+//! Constants are chosen to be numerically comparable to Liu et al. Table II
+//! under B = 1 GHz and γ_total = 100 (see `baselines/liu_tsp2018_crb.csv`).
+//!
+//! **Assumptions:**
+//! - Single-target, SISO channel with AWGN.
+//! - Flat (rectangular) power spectrum over `[−B/2, B/2]`, so the signal's
+//!   RMS bandwidth β equals the passband width B.  Non-rectangular spectra
+//!   (e.g. raised-cosine OFDM shaping) would change the leading constant.
+//! - **One-way range convention**: `R = c · τ`, giving
+//!   `var(R̂) = c² · var(τ̂)`.  For round-trip radar range (`R = c·τ/2`) the
+//!   formula gains an additional factor of 1/4.
+//!
+//! Under these assumptions:
 //!
 //! ```text
 //! CRB_range = c² / (8π²B²γ_s)   [m²]
+//!
+//!   where γ_s = α · γ_total
 //! ```
 //!
 //! The root-CRB gives the minimum achievable range-estimation std-dev (m).
 //!
 //! ## Communication Capacity
 //!
-//! Shannon capacity with communication SNR `γ_c` and bandwidth `B`:
+//! Shannon capacity with communication SNR `γ_c` and total bandwidth `B`:
 //!
 //! ```text
 //! C = B · log₂(1 + γ_c)   [bits/s]
 //! ```
+//!
+//! **Assumptions:**
+//! - Orthogonal subcarrier assignment: sensing pilots occupy dedicated
+//!   subcarriers; data symbols occupy the remaining subcarriers.
+//! - No cross-function interference (sensing waveforms are not decoded as
+//!   data; data subcarriers are excluded from the range estimator).
+//! - Communication SNR: `γ_c = (1 − α) · γ_total`.
+//! - This model does **not** capture DFRC gains from reusing sensing waveforms
+//!   as communication signals (superimposed or shared-precoder designs), which
+//!   can produce non-trivial tradeoffs beyond a scalar α-split.
 //!
 //! ## SINR for Communication
 //!
@@ -52,14 +81,22 @@
 //!
 //! ## Pareto Frontier
 //!
-//! Sweeping α ∈ [0, 1] traces the CRB-vs-capacity tradeoff curve:
-//! - α = 0 → maximum capacity, no sensing
-//! - α = 1 → minimum CRB, no communication
+//! Sweeping α ∈ [0, 1] traces the CRB-vs-capacity tradeoff curve under the
+//! above simplified model:
+//! - α = 0 → maximum capacity, no sensing (`CRB = ∞`)
+//! - α = 1 → minimum CRB, no communication (`C = 0`)
+//!
+//! The monotone tradeoff (CRB non-increasing, capacity non-increasing as α
+//! increases) holds by construction for this scalar power-split model.  More
+//! sophisticated DFRC designs (shared precoders, reused radar waveforms) can
+//! break strict monotonicity and are **not** captured here.
 //!
 //! References:
-//! - Liu et al., *Dual-Functional Radar-Communication Waveform Design*,
-//!   IEEE J. Sel. Areas Commun. 2018
-//! - Kay, *Fundamentals of Statistical Signal Processing*, Vol. I (CRB)
+//! - Liu, F. et al., *Cramér–Rao Bound Optimization for Joint
+//!   Radar-Communication Beamforming*, IEEE Trans. Signal Process., 2018,
+//!   DOI: 10.1109/TSP.2018.2864261
+//! - Kay, S. M., *Fundamentals of Statistical Signal Processing:
+//!   Estimation Theory*, Vol. I, Prentice Hall, 1993 (CRB for time delay)
 
 /// Speed of light (m/s).
 const C: f64 = 3.0e8;
@@ -106,7 +143,14 @@ impl DfrcConfig {
 
     /// Cramér-Rao Bound for range estimation (m²) at the given sensing power ratio α.
     ///
+    /// Uses the simplified SISO time-delay CRB (Kay, SPSS Vol. I, eq. 3.31)
+    /// assuming a flat (rectangular) power spectrum and one-way range convention
+    /// (`R = c·τ`):
+    ///
     /// `CRB = c² / (8π²B²γ_s)` where `γ_s = α · γ_total`.
+    ///
+    /// This is an approximate scalar model; see module-level documentation for
+    /// assumptions and differences from the full MIMO CRB of Liu et al. (TSP 2018).
     ///
     /// Returns `f64::INFINITY` when α = 0 (no sensing power).
     pub fn crb_range_m2(&self, sensing_power_ratio: f64) -> f64 {
@@ -125,7 +169,10 @@ impl DfrcConfig {
 
     /// Shannon communication capacity (bits/s) at the given sensing power ratio α.
     ///
-    /// `C = B · log₂(1 + (1−α)·γ_total)`
+    /// `C = B · log₂(1 + γ_c)` where `γ_c = (1−α) · γ_total`.
+    ///
+    /// Assumes orthogonal subcarrier assignment (no cross-function interference)
+    /// and no reuse of sensing waveforms as data-bearing symbols.
     pub fn capacity_bps(&self, sensing_power_ratio: f64) -> f64 {
         let alpha_c = (1.0 - sensing_power_ratio).max(0.0);
         let gamma_c = alpha_c * self.total_snr;
@@ -183,7 +230,8 @@ pub struct DfrcValidation;
 
 impl Validate for DfrcValidation {
     fn validate() -> ValidationResult {
-        // Reference: Kay, SPSS Vol. I, eq. 3.31
+        // Reference: Kay, SPSS Vol. I, eq. 3.31 (simplified SISO, flat spectrum,
+        // one-way range R = c·τ).
         // CRB = c² / (8π²B²γ_s)
         // At B = 1 GHz, γ_s = 1 (0 dB):
         //   CRB = (3e8)² / (8π²(1e9)²) ≈ 1.1379e-3 m²
@@ -282,6 +330,8 @@ mod tests {
 
     #[test]
     fn pareto_frontier_is_monotone() {
+        // Monotonicity holds by construction for the scalar α power-split model.
+        // More sophisticated DFRC designs may break this strict ordering.
         let cfg = default_cfg();
         let frontier = cfg.pareto_frontier(20);
         for w in frontier.windows(2) {

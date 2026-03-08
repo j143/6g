@@ -10,8 +10,11 @@ ISAC is one of the clearest differentiators of 6G from 5G. The same waveform and
 - The sensing power ratio α ∈ [0, 1]. Values outside this range are a programming error.
 - `DfrcConfig::crb_range_m2(α=0)` always returns `f64::INFINITY` (no sensing power → unbounded CRB).
 - `DfrcConfig::capacity_bps(α=1)` always returns `0.0` (all power to sensing → no capacity).
-- `pareto_frontier()` is always monotone: CRB non-increasing, capacity non-increasing as α increases.
-- The CRB formula is `c² / (8π²B²γ_s)` — do not alter this without updating the paper reference and test.
+- `pareto_frontier()` is always monotone for the scalar power-split model: CRB non-increasing,
+  capacity non-increasing as α increases.  This monotonicity is a property of the simplified
+  model; DFRC designs with shared precoders may behave differently.
+- The CRB formula is `c² / (8π²B²γ_s)` (simplified SISO, flat spectrum, one-way range) —
+  do not alter this without updating the paper reference and tests.
 - `ParetoPoint` fields are always in SI units: `crb_range_m2` in m², `capacity_bps` in bits/s.
 
 ## Architecture
@@ -38,7 +41,10 @@ ISAC is one of the clearest differentiators of 6G from 5G. The same waveform and
 ### `dfrc.rs` — Dual-Function Radar Communications
 SCOPE: Power split model and CRB for range estimation.
 Key types: `DfrcConfig`, `ParetoPoint`, `DfrcValidation`.
-Formula: `CRB = c² / (8π²B²γ_s)` (Kay, SPSS Vol. I, eq. 3.31).
+Formula: simplified SISO time-delay CRB `CRB = c² / (8π²B²γ_s)` (Kay, SPSS
+Vol. I, eq. 3.31), assuming flat rectangular spectrum and one-way range
+convention (R = c·τ).  Constants are tuned to be numerically comparable to
+Liu et al. (IEEE TSP 2018) Table II; see `baselines/liu_tsp2018_crb.csv`.
 
 ### `sensing.rs`
 
@@ -83,6 +89,7 @@ Run: `cargo run --example exp_001_dfrc_pareto_frontier`
 
 ## References
 
-- Liu et al., *Dual-Functional Radar-Communication Waveform Design*, IEEE JSAC 2018
+- Liu, F. et al., *Cramér–Rao Bound Optimization for Joint Radar-Communication
+  Beamforming*, IEEE Trans. Signal Process., 2018, DOI: 10.1109/TSP.2018.2864261
 - Kay, *Fundamentals of Statistical Signal Processing*, Vol. I (CRB derivation)
 - 3GPP TR 22.837 (ISAC use cases)

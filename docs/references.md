@@ -37,7 +37,7 @@ Pinned reference documents for the 6G experiment bed.
 
 ### ISAC
 
-- **Liu, F. et al.** — *Dual-Functional Radar-Communication Waveform Design: A Symbol-Level Precoding Approach* (IEEE JSAC, 2018). Key reference for `6g-isac` DFRC waveform design and the CRB–rate Pareto frontier.
+- **Liu, F. et al.** — *Cramér–Rao Bound Optimization for Joint Radar-Communication Beamforming* (IEEE Trans. Signal Process., 2018; DOI: 10.1109/TSP.2018.2864261). Reference for the approximate scalar CRB used in `6g-isac/dfrc.rs`; the code uses a simplified SISO form (Kay, SPSS Vol. I, eq. 3.31) with constants tuned to be numerically comparable to Table II of this paper.
 
 ### AI / ML
 
