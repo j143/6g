@@ -5,5 +5,5 @@
   "sensing_subcarriers": 64,
   "total_subcarriers": 256,
   "num_pareto_points": 20,
-  "paper": "Liu et al., IEEE J. Sel. Areas Commun. 2018"
+  "paper": "Liu et al., IEEE Trans. Signal Process. 2018, DOI: 10.1109/TSP.2018.2864261"
 }

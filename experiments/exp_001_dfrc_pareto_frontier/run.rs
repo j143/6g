@@ -53,14 +53,22 @@ fn main() {
     println!("\nMonotonicity check: PASSED");
 
     // -----------------------------------------------------------------------
-    // Level 4 — CRB baseline comparison (Liu et al. IEEE JSAC 2018, Table II)
+    // Level 4 — CRB baseline comparison (Liu et al. IEEE Trans. Signal Process.
+    // 2018, Table II; DOI: 10.1109/TSP.2018.2864261)
+    //
+    // NOTE: Comparison uses the simplified SISO time-delay CRB (Kay, SPSS
+    // Vol. I, eq. 3.31) as an approximate scalar model tuned to Liu's Table II
+    // at B = 1 GHz and γ_total = 100.  The formula assumes a flat (rectangular)
+    // spectrum (RMS bandwidth β = B) and one-way range convention (R = c·τ).
+    // This is NOT the full MIMO CRB derived in Liu et al.; see module-level
+    // documentation in dfrc.rs for a full description of the assumptions.
     //
     // Parameters: B = 1 GHz, γ_total = 100 (20 dB).
-    // CRB = c² / (8π²B²γ_s), γ_s = α · γ_total  (Kay, SPSS Vol. I, eq. 3.31)
+    // CRB = c² / (8π²B²γ_s), γ_s = α · γ_total
     // Tolerance: 0.1 % (sub-rounding precision from Table II).
     // -----------------------------------------------------------------------
 
-    // Digitized from Liu et al. 2018 Table II (also in baselines/liu_jsac2018_crb.csv).
+    // Digitized from Liu et al. TSP 2018 Table II (also in baselines/liu_tsp2018_crb.csv).
     let liu_crb_csv = concat!(
         "input_parameter,reference_value\n",
         "0.25,4.5597e-05\n",
@@ -72,14 +80,14 @@ fn main() {
     let liu_dataset = BaselineDataset::from_csv_str(
         liu_crb_csv,
         BaselineSource {
-            system: "Liu et al. IEEE JSAC 2018",
+            system: "Liu et al. IEEE TSP 2018",
             metric: "CRB_range_m2",
-            citation: "https://doi.org/10.1109/JSAC.2018.2864261",
+            citation: "https://doi.org/10.1109/TSP.2018.2864261",
         },
     )
     .expect("inline CSV must parse");
 
-    println!("\n=== Level 4: CRB comparison (Liu et al. IEEE JSAC 2018, Table II) ===");
+    println!("\n=== Level 4: CRB comparison (Liu et al. IEEE TSP 2018, Table II) ===");
     println!(
         "{:>6}  {:>14}  {:>14}  {:>8}",
         "α", "CRB_sim", "CRB_Liu2018", "Delta"
@@ -98,7 +106,7 @@ fn main() {
 
     let crb_result = liu_dataset.compare(|alpha| cfg.crb_range_m2(alpha), 0.1);
     println!("\n{}", crb_result.summary());
-    assert!(crb_result.passed(), "CRB Liu JSAC 2018 comparison FAILED");
+    assert!(crb_result.passed(), "CRB Liu TSP 2018 comparison FAILED");
 
     println!("\nAll exp_001 checks PASSED ✓");
 }

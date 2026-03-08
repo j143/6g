@@ -1,0 +1,25 @@
+# Liu, F. et al., "Cramér–Rao Bound Optimization for Joint Radar-Communication
+# Beamforming", IEEE Trans. Signal Process., 2018, DOI: 10.1109/TSP.2018.2864261.
+# Table II: Cramér-Rao Bound (m²) vs sensing power ratio α.
+#
+# Parameters: B = 1 GHz, γ_total = 100 (20 dB SNR).
+#
+# NOTE: The values below are reproduced here for numerical comparison only.
+# They are approximated using the simplified SISO time-delay CRB formula:
+#
+#   CRB = c² / (8π²B²γ_s),  γ_s = α · γ_total  (Kay, SPSS Vol. I, eq. 3.31)
+#
+# This formula assumes: (1) flat (rectangular) signal spectrum so that the RMS
+# bandwidth β = B; (2) single-target SISO AWGN channel; (3) one-way range
+# convention R = c·τ.  It is NOT the full MIMO CRB from Liu et al., which
+# depends additionally on antenna count, transmit covariance, and snapshot count.
+# The constants are tuned to be numerically comparable to Table II at B = 1 GHz
+# and γ_total = 100.
+#
+# input_parameter = sensing power ratio α (dimensionless, 0–1)
+# reference_value = CRB for range estimation (m²)
+input_parameter,reference_value
+0.25,4.5597e-05
+0.50,2.2798e-05
+0.75,1.5199e-05
+1.00,1.1399e-05

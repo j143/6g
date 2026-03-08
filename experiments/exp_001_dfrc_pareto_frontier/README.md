@@ -16,6 +16,6 @@ Verify monotonicity: CRB non-increasing, capacity non-increasing as α grows.
 - Monotone tradeoff with no crossings
 
 ## Reference
-Liu et al., *Dual-Functional Radar-Communication Waveform Design*,
-IEEE J. Sel. Areas Commun., vol. 36, no. 9, 2018.
+Liu, F. et al., *Cramér–Rao Bound Optimization for Joint Radar-Communication
+Beamforming*, IEEE Trans. Signal Process., 2018, DOI: 10.1109/TSP.2018.2864261.
 Kay, *Fundamentals of Statistical Signal Processing*, Vol. I, Ch. 3.
