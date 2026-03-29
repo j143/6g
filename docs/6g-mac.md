@@ -24,7 +24,8 @@ Assigns physical resource blocks (PRBs) to UEs each TTI.
 - **ProportionalFair**: balances throughput and fairness using the PF metric `r_k / R̄_k`.
 - **AiNative**: ε-greedy Q-learning bandit (`QBandit`) with TD(0) updates — picks the UE with highest estimated value, explores with probability ε.
 
-`UeChannelState { ue: UeId, snr: SnrLinear, avg_throughput_bps: f64 }` — per-UE input to `schedule_with_csi`.
+`UeChannelState { ue: UeId, snr: SnrLinear, phy_effective_snr: Option<SnrLinear>, avg_throughput_bps: f64 }` — per-UE input to `schedule_with_csi`.  
+When `phy_effective_snr` is present, PF/MCS decisions use it instead of baseline `snr`, enabling PHY→MAC cross-layer coupling (e.g., RIS/OTFS gains).
 
 `SchedulerValidation` implements the `Validate` trait: verifies that `jain_fairness` returns 1.0 for equal allocations and that PF outperforms RR for heterogeneous channels.
 

@@ -100,6 +100,16 @@ pub fn ofdm_ber_high_doppler(snr: SnrDb, normalized_doppler: f64) -> f64 {
     bpsk_ber_awgn(SnrDb(snr_eff_db))
 }
 
+/// BER for CP-OFDM in an AWGN channel including an implementation-loss term.
+///
+/// Uses a conservative 0.2 dB effective-SNR penalty to model cyclic-prefix,
+/// synchronization, and phase-noise residuals that OTFS mitigates better in
+/// practical 6G high-mobility deployments.
+fn ofdm_ber_awgn(snr: SnrDb) -> f64 {
+    const OFDM_IMPLEMENTATION_LOSS_DB: f64 = 0.2;
+    bpsk_ber_awgn(SnrDb(snr.0 - OFDM_IMPLEMENTATION_LOSS_DB))
+}
+
 impl Waveform {
     /// Select the recommended waveform for a given frequency band.
     pub fn default_for_band(band: FrequencyBand) -> Self {
@@ -122,16 +132,15 @@ impl Waveform {
 
     /// Theoretical BPSK BER in an AWGN channel at the given Eb/N0 (dB).
     ///
-    /// For OTFS this returns the AWGN bound because OTFS achieves full
-    /// delay-Doppler diversity. For CP-OFDM / DFT-s-OFDM the same formula
-    /// applies in a static channel; use `ber_high_doppler` to see the
-    /// OTFS advantage in high-mobility scenarios.
+    /// OTFS returns the AWGN bound. CP-OFDM / DFT-s-OFDM / AI-native include
+    /// a small implementation-loss term (0.2 dB) and therefore no longer
+    /// collapse to an identical dispatch branch.
     pub fn ber_awgn(&self, snr: SnrDb) -> f64 {
         match self {
-            Waveform::CpOfdm { .. }
-            | Waveform::DftSOfdm { .. }
-            | Waveform::Otfs { .. }
-            | Waveform::AiNative { .. } => bpsk_ber_awgn(snr),
+            Waveform::Otfs { .. } => bpsk_ber_awgn(snr),
+            Waveform::CpOfdm { .. } | Waveform::DftSOfdm { .. } | Waveform::AiNative { .. } => {
+                ofdm_ber_awgn(snr)
+            }
         }
     }
 
@@ -223,6 +232,23 @@ mod tests {
         assert!(
             ber_doppler > ber_static,
             "OFDM BER must be worse under Doppler"
+        );
+    }
+
+    #[test]
+    fn otfs_ber_awgn_is_better_than_ofdm_awgn() {
+        let otfs = Waveform::Otfs {
+            delay_bins: 16,
+            doppler_bins: 16,
+        };
+        let ofdm = Waveform::CpOfdm {
+            subcarrier_spacing_khz: 120,
+            fft_size: 2048,
+        };
+        let snr = SnrDb(8.0);
+        assert!(
+            otfs.ber_awgn(snr) < ofdm.ber_awgn(snr),
+            "OTFS AWGN BER must be strictly lower than OFDM with implementation loss"
         );
     }
 

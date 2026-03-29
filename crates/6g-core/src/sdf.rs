@@ -85,6 +85,8 @@ impl SensingSubscription {
 /// the number of subscriptions notified.
 pub struct SensingDataFunction {
     subscriptions: Vec<SensingSubscription>,
+    event_history: Vec<DetectionEvent>,
+    max_history: usize,
     /// Total detection events published (diagnostic counter).
     pub published_count: usize,
 }
@@ -94,6 +96,8 @@ impl SensingDataFunction {
     pub fn new() -> Self {
         Self {
             subscriptions: Vec::new(),
+            event_history: Vec::new(),
+            max_history: 128,
             published_count: 0,
         }
     }
@@ -104,8 +108,13 @@ impl SensingDataFunction {
     /// removed).
     pub fn subscribe(&mut self, cell_id: NodeId, max_range: Distance) -> usize {
         let idx = self.subscriptions.len();
-        self.subscriptions
-            .push(SensingSubscription::new(cell_id, max_range));
+        let mut sub = SensingSubscription::new(cell_id, max_range);
+        for event in &self.event_history {
+            if sub.matches(event) {
+                sub.delivered_count += 1;
+            }
+        }
+        self.subscriptions.push(sub);
         idx
     }
 
@@ -129,6 +138,11 @@ impl SensingDataFunction {
     /// Returns the number of subscriptions that received the event.
     pub fn publish(&mut self, event: &DetectionEvent) -> usize {
         self.published_count += 1;
+        self.event_history.push(event.clone());
+        if self.event_history.len() > self.max_history {
+            let overflow = self.event_history.len() - self.max_history;
+            self.event_history.drain(0..overflow);
+        }
         let mut delivered = 0;
         for sub in &mut self.subscriptions {
             if sub.matches(event) {
@@ -147,6 +161,11 @@ impl SensingDataFunction {
     /// Borrow the subscription at `index`, if it exists.
     pub fn subscription(&self, index: usize) -> Option<&SensingSubscription> {
         self.subscriptions.get(index)
+    }
+
+    /// Number of retained detection events in the replay ring buffer.
+    pub fn history_len(&self) -> usize {
+        self.event_history.len()
     }
 }
 
@@ -305,6 +324,19 @@ mod tests {
         assert_eq!(sdf.subscription_count(), 0);
         let n = sdf.publish(&make_event(cell, 50.0));
         assert_eq!(n, 0, "unsubscribed sink must not receive events");
+    }
+
+    #[test]
+    fn late_subscriber_replays_matching_history() {
+        let mut sdf = SensingDataFunction::new();
+        let cell = NodeId(99);
+        let _ = sdf.publish(&make_event(cell, 80.0));
+        let idx = sdf.subscribe(cell, Distance::from_m(100.0));
+        assert_eq!(
+            sdf.subscription(idx).unwrap().delivered_count,
+            1,
+            "late subscriber must receive replay from history"
+        );
     }
 
     #[test]

@@ -43,13 +43,19 @@ pub struct NtnNode {
 }
 
 impl NtnNode {
+    /// Create a LEO satellite node.
+    ///
+    /// The one-way propagation delay is computed from the node altitude in
+    /// `position.z` (metres) using `delay = altitude / c`.
     pub fn leo_satellite(id: u64, position: Position3D) -> Self {
+        let altitude_m = position.z.max(0.0);
+        let propagation_delay_ms = altitude_m / 299_792_458.0 * 1_000.0;
         Self {
             id,
             node_type: NtnNodeType::LeoSatellite,
             position,
-            altitude_m: 550_000.0,
-            propagation_delay_ms: 1.8, // ~550 km / c
+            altitude_m,
+            propagation_delay_ms,
         }
     }
 }
@@ -94,5 +100,19 @@ mod tests {
         ntn.add_node(NtnNode::leo_satellite(1, pos));
         assert_eq!(ntn.node_count(), 1);
         assert_eq!(ntn.nodes()[0].node_type, NtnNodeType::LeoSatellite);
+        assert!(
+            (ntn.nodes()[0].propagation_delay_ms - 1.834).abs() < 0.01,
+            "550 km one-way delay must be ~1.834 ms"
+        );
+    }
+
+    #[test]
+    fn propagation_delay_tracks_input_altitude() {
+        let pos = Position3D::new(0.0, 0.0, 20_000.0);
+        let node = NtnNode::leo_satellite(2, pos);
+        assert!(
+            (node.propagation_delay_ms - 0.0667).abs() < 0.002,
+            "20 km one-way delay must be ~0.0667 ms"
+        );
     }
 }
