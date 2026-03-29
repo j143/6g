@@ -23,6 +23,8 @@
 //! Proposed in 3GPP TR 22.837 (Integrated Sensing and Communication for 5G/6G)
 //! and Nokia Bell Labs *Sensing as a Service in 6G* (2021).
 
+use std::collections::VecDeque;
+
 use sixg_common::types::{Distance, NodeId, UeId, Velocity};
 use sixg_common::validation::{Validate, ValidationCheck, ValidationResult};
 
@@ -85,7 +87,7 @@ impl SensingSubscription {
 /// the number of subscriptions notified.
 pub struct SensingDataFunction {
     subscriptions: Vec<SensingSubscription>,
-    event_history: Vec<DetectionEvent>,
+    event_history: VecDeque<DetectionEvent>,
     max_history: usize,
     /// Total detection events published (diagnostic counter).
     pub published_count: usize,
@@ -96,7 +98,7 @@ impl SensingDataFunction {
     pub fn new() -> Self {
         Self {
             subscriptions: Vec::new(),
-            event_history: Vec::new(),
+            event_history: VecDeque::new(),
             max_history: 128,
             published_count: 0,
         }
@@ -138,10 +140,9 @@ impl SensingDataFunction {
     /// Returns the number of subscriptions that received the event.
     pub fn publish(&mut self, event: &DetectionEvent) -> usize {
         self.published_count += 1;
-        self.event_history.push(event.clone());
+        self.event_history.push_back(event.clone());
         if self.event_history.len() > self.max_history {
-            let overflow = self.event_history.len() - self.max_history;
-            self.event_history.drain(0..overflow);
+            self.event_history.pop_front();
         }
         let mut delivered = 0;
         for sub in &mut self.subscriptions {
