@@ -1,0 +1,47 @@
+{
+  "comment": "exp_009 reproducible parameter set — do not edit manually; update and re-run",
+
+  "ues": 8,
+  "n_tti": 100,
+  "total_rbs": 100,
+
+  "phy": {
+    "carrier_freq_ghz": 28.0,
+    "subcarrier_spacing_khz": 30,
+    "velocity_kmh": 250.0,
+    "subthz_freq_ghz": 150.0,
+    "link_distance_m": 100.0
+  },
+
+  "ris": {
+    "num_elements": 256,
+    "h_direct": 0.0001,
+    "h_reflect_in": 0.01,
+    "h_reflect_out": 0.01
+  },
+
+  "ntn": {
+    "leo_altitude_m": 550000.0,
+    "haps_altitude_m": 20000.0,
+    "geo_altitude_m": 35786000.0
+  },
+
+  "isac": {
+    "sensing_snr_db": 20.0,
+    "bandwidth_hz": 1000000000.0,
+    "sensing_subcarriers": 64,
+    "total_subcarriers": 256
+  },
+
+  "core": {
+    "ue_id_base": 1001,
+    "gnb_node_id": 42,
+    "tracking_area": 7,
+    "rtt_5g_baseline": 4,
+    "rtt_6g_sbav2": 1
+  },
+
+  "semantic": {
+    "payload_bytes": 1024
+  }
+}
