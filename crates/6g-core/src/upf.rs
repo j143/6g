@@ -164,6 +164,8 @@ impl Upf {
             .unwrap_or(false)
         {
             self.forward_uplink_for_session(session_id, payload);
+            // Non-semantic sessions bypass semantic encoding and return the
+            // original payload bytes to keep API symmetry with the encoded path.
             return payload.to_vec();
         }
         let codec = TextSemanticCodec;

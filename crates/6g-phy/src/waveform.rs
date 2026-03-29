@@ -104,7 +104,8 @@ pub fn ofdm_ber_high_doppler(snr: SnrDb, normalized_doppler: f64) -> f64 {
 ///
 /// Uses a conservative 0.2 dB effective-SNR penalty to model cyclic-prefix,
 /// synchronization, and phase-noise residuals that OTFS mitigates better in
-/// practical 6G high-mobility deployments.
+/// practical 6G high-mobility deployments. The penalty is an explicit
+/// simulation assumption (not a measured standard value).
 fn ofdm_ber_awgn(snr: SnrDb) -> f64 {
     const OFDM_IMPLEMENTATION_LOSS_DB: f64 = 0.2;
     bpsk_ber_awgn(SnrDb(snr.0 - OFDM_IMPLEMENTATION_LOSS_DB))
