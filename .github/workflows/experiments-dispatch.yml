@@ -1,0 +1,52 @@
+name: Run Experiments
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: "Experiment example to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - exp_001_dfrc_pareto_frontier
+          - exp_002_phy_baseline_comparison
+          - exp_003_mac_srsran_baseline
+          - exp_004_semantic_ai_phase5
+          - exp_005_e2e_core_session
+          - exp_006_open5g_core_comparison
+          - exp_007_ueransim_gnb_comparison
+          - exp_008_onnx_semantic_codec
+          - exp_009_5g_vs_6g_full_stack
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  run-experiments:
+    name: Run selected experiment(s)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run experiment(s)
+        run: |
+          if [ "${{ github.event.inputs.experiment }}" = "all" ]; then
+            for exp in \
+              exp_001_dfrc_pareto_frontier \
+              exp_002_phy_baseline_comparison \
+              exp_003_mac_srsran_baseline \
+              exp_004_semantic_ai_phase5 \
+              exp_005_e2e_core_session \
+              exp_006_open5g_core_comparison \
+              exp_007_ueransim_gnb_comparison \
+              exp_008_onnx_semantic_codec \
+              exp_009_5g_vs_6g_full_stack
+            do
+              cargo run --example "$exp"
+            done
+          else
+            cargo run --example "${{ github.event.inputs.experiment }}"
+          fi
