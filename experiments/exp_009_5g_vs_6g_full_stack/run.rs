@@ -979,8 +979,8 @@ mod tests {
     }
 
     #[test]
-    fn flaw_f2_ber_awgn_identical_for_otfs_and_ofdm() {
-        // F-2: ber_awgn dispatches identically — OTFS shows no static advantage
+    fn fix_f2_ber_awgn_distinguishes_otfs_and_ofdm() {
+        // Fixed F-2: ber_awgn now distinguishes OTFS and CP-OFDM.
         let ofdm = Waveform::CpOfdm {
             subcarrier_spacing_khz: 30,
             fft_size: 4096,
@@ -990,10 +990,9 @@ mod tests {
             doppler_bins: 16,
         };
         let snr = SnrDb(10.0);
-        assert_eq!(
-            ofdm.ber_awgn(snr).to_bits(),
-            otfs.ber_awgn(snr).to_bits(),
-            "F-2: ber_awgn must be identical for OTFS and CP-OFDM"
+        assert!(
+            otfs.ber_awgn(snr) < ofdm.ber_awgn(snr),
+            "OTFS ber_awgn must now be lower than CP-OFDM ber_awgn"
         );
     }
 
@@ -1011,29 +1010,25 @@ mod tests {
     }
 
     #[test]
-    fn flaw_f4_leo_satellite_hardcodes_delay() {
+    fn fix_f4_leo_satellite_uses_altitude_for_delay() {
         use sixg_common::types::Position3D;
         let haps_alt = 20_000.0_f64;
         let pos = Position3D::new(0.0, 0.0, haps_alt);
         let node = NtnNode::leo_satellite(1, pos);
-        // Hardcoded value is 1.8; correct for 20 km would be ~0.067 ms
+        // Correct for 20 km is ~0.067 ms
         let correct_delay = leo_propagation_delay_ms(Distance::from_m(haps_alt));
         assert!(
-            (node.propagation_delay_ms - 1.8).abs() < 0.01,
-            "F-4: NtnNode::leo_satellite must hardcode 1.8 ms"
+            (node.propagation_delay_ms - correct_delay).abs() < 0.01,
+            "NtnNode::leo_satellite must compute delay from altitude"
         );
         assert!(
             (correct_delay - 0.067).abs() < 0.01,
             "Correct HAPS delay must be ≈ 0.067 ms"
         );
-        assert!(
-            (node.propagation_delay_ms - correct_delay).abs() > 1.5,
-            "F-4: hardcoded delay differs significantly from correct delay"
-        );
     }
 
     #[test]
-    fn flaw_f6_late_sdf_subscriber_misses_event() {
+    fn fix_f6_late_sdf_subscriber_replays_event() {
         let mut sdf = SensingDataFunction::new();
         let cell = NodeId(1);
         // Publish BEFORE subscribing
@@ -1044,25 +1039,33 @@ mod tests {
             ue_id: None,
         };
         sdf.publish(&event);
-        // Now subscribe — too late
+        // Now subscribe — event replay should deliver from history
         let idx = sdf.subscribe(cell, Distance::from_m(500.0));
         assert_eq!(
             sdf.subscription(idx).unwrap().delivered_count,
-            0,
-            "F-6: late subscriber must receive 0 events"
+            1,
+            "Late subscriber must receive replayed matching event"
         );
     }
 
     #[test]
-    fn flaw_f7_unknown_flow_drops_payload() {
+    fn fix_f7_unknown_flow_buffers_payload() {
         use sixg_core::upf::{FlowAction, Upf};
         let mut upf = Upf::new();
         let ue = UeId(9999);
         let payload = b"first packet";
         let action = upf.forward_unknown_flow(ue, payload);
         assert_eq!(action, FlowAction::TriggerEstablishment(ue));
-        // No bytes were counted — payload is dropped
-        assert_eq!(upf.stats.bytes_uplink, 0, "F-7: payload must be dropped");
+        // No bytes counted yet (not forwarded), but payload is buffered.
+        assert_eq!(
+            upf.stats.bytes_uplink, 0,
+            "Unknown-flow payload is buffered and not yet forwarded"
+        );
+        assert_eq!(
+            upf.buffered_uplink_count(ue),
+            1,
+            "F-7 fix: payload must be buffered for later forwarding"
+        );
     }
 
     #[test]

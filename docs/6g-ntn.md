@@ -7,7 +7,7 @@ NTN support is a native 6G feature (not a bolt-on as in 5G Rel-17). `6g-ntn` mod
 ## Invariants
 
 <!-- Things that must ALWAYS be true, regardless of changes -->
-- `NtnNodeType` determines propagation delay; do not compute delay independently of this enum.
+- `NtnNode::leo_satellite()` computes one-way propagation delay from `position.z` altitude (metres) using `delay = altitude/c`.
 - `NtnNode` always carries a `Position3D` in metres (WGS-84 or local frame) from `6g-common`.
 - Doppler shift formula: `f_d = (v/c) × f_carrier` — do not alter without updating tests.
 

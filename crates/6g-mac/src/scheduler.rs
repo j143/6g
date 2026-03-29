@@ -12,7 +12,7 @@
 //! Use [`Scheduler::schedule_with_csi`] for full-featured scheduling and
 //! [`jain_fairness`] to measure allocation equity across UEs.
 
-use sixg_common::types::{SnrLinear, UeId};
+use sixg_common::types::{PowerDb, SnrLinear, UeId};
 use sixg_common::validation::{Validate, ValidationCheck, ValidationResult};
 
 // ---------------------------------------------------------------------------
@@ -56,6 +56,9 @@ pub struct UeChannelState {
     pub ue: UeId,
     /// Instantaneous SNR reported by the UE (linear ratio).
     pub snr: SnrLinear,
+    /// PHY-enhanced effective SNR (linear ratio), if available from cross-layer
+    /// adaptation (e.g., RIS-optimised or OTFS-equalised estimate).
+    pub phy_effective_snr: Option<SnrLinear>,
     /// Exponential moving average of served throughput (bits/s, dimensionless ratio).
     pub avg_throughput_bps: f64,
 }
@@ -66,8 +69,37 @@ impl UeChannelState {
         Self {
             ue,
             snr,
+            phy_effective_snr: None,
             avg_throughput_bps: 1.0,
         }
+    }
+
+    /// Create a channel state from baseline and PHY-enhanced SNR estimates.
+    ///
+    /// `baseline_snr` and `phy_effective_snr` are linear SNR ratios (Psignal/Pnoise).
+    pub fn from_phy(ue: UeId, baseline_snr: SnrLinear, phy_effective_snr: SnrLinear) -> Self {
+        Self {
+            ue,
+            snr: baseline_snr,
+            phy_effective_snr: Some(phy_effective_snr),
+            avg_throughput_bps: 1.0,
+        }
+    }
+
+    /// Set a PHY-derived SNR gain in dB on top of the baseline SNR.
+    ///
+    /// `gain_db` is a power-domain SNR gain in dB.
+    pub fn apply_phy_gain_db(&mut self, gain_db: PowerDb) {
+        let boosted = self.snr.as_linear() * 10f64.powf(gain_db.as_db() / 10.0);
+        self.phy_effective_snr = Some(SnrLinear::new(boosted));
+    }
+
+    /// Returns the SNR that the scheduler should use for decisions.
+    ///
+    /// Uses PHY-enhanced SNR when present, otherwise falls back to baseline
+    /// CSI-reported SNR.
+    fn scheduler_snr(&self) -> SnrLinear {
+        self.phy_effective_snr.unwrap_or(self.snr)
     }
 }
 
@@ -184,7 +216,7 @@ impl QBandit {
     /// `reward` should be a normalised value in [0, 1] (e.g. throughput / max_throughput).
     pub fn update(&mut self, ue_idx: usize, snr: SnrLinear, reward: f64) {
         if ue_idx >= self.q_table.len() {
-            return;
+            self.q_table.resize(ue_idx + 1, vec![0.0; self.n_buckets]);
         }
         let bucket = self.snr_bucket(snr);
         let q = self.q_table[ue_idx][bucket];
@@ -216,7 +248,7 @@ impl Scheduler {
     /// Create a scheduler with a specific policy.
     pub fn with_policy(policy: SchedulingPolicy) -> Self {
         let q_bandit = match policy {
-            SchedulingPolicy::AiNative => Some(QBandit::new(64, 16, 0.1)),
+            SchedulingPolicy::AiNative => Some(QBandit::new(0, 16, 0.1)),
             _ => None,
         };
         Self {
@@ -279,7 +311,7 @@ impl Scheduler {
                             ue: ue_states[idx].ue,
                             rb_start: slot * rbs_per_ue,
                             rb_count: rbs_per_ue,
-                            mcs: snr_to_mcs(ue_states[idx].snr),
+                            mcs: snr_to_mcs(ue_states[idx].scheduler_snr()),
                         }
                     })
                     .collect()
@@ -299,7 +331,7 @@ impl Scheduler {
                         ue: ue_states[idx].ue,
                         rb_start: slot * rbs_per_ue,
                         rb_count: rbs_per_ue,
-                        mcs: snr_to_mcs(ue_states[idx].snr),
+                        mcs: snr_to_mcs(ue_states[idx].scheduler_snr()),
                     })
                     .collect()
             }
@@ -326,7 +358,7 @@ impl Scheduler {
                         ue: ue_states[idx].ue,
                         rb_start: cursor,
                         rb_count: rbs,
-                        mcs: snr_to_mcs(ue_states[idx].snr),
+                        mcs: snr_to_mcs(ue_states[idx].scheduler_snr()),
                     });
                     cursor += rbs;
                 }
@@ -366,7 +398,7 @@ fn snr_to_mcs(snr: SnrLinear) -> u8 {
 
 /// Proportional Fair metric: `log₂(1 + SNR) / avg_throughput`.
 fn pf_metric(s: &UeChannelState) -> f64 {
-    let r = (1.0 + s.snr.as_linear()).log2();
+    let r = (1.0 + s.scheduler_snr().as_linear()).log2();
     if s.avg_throughput_bps < 1.0 {
         r
     } else {
@@ -454,11 +486,13 @@ mod tests {
             UeChannelState {
                 ue: UeId(1),
                 snr: SnrLinear::new(1.0),
+                phy_effective_snr: None,
                 avg_throughput_bps: 1.0,
             },
             UeChannelState {
                 ue: UeId(2),
                 snr: SnrLinear::new(1000.0),
+                phy_effective_snr: None,
                 avg_throughput_bps: 1.0,
             },
         ];
@@ -511,6 +545,33 @@ mod tests {
         assert!(
             q_after > q_before,
             "Q-value should increase after positive reward"
+        );
+    }
+
+    #[test]
+    fn observe_reward_resizes_q_table_for_dense_ue_indices() {
+        let mut sched = Scheduler::with_policy(SchedulingPolicy::AiNative);
+        let snr = SnrLinear::new(10.0);
+        sched.observe_reward(65, snr, 9e9);
+        let q = sched.q_bandit.as_ref().unwrap().q_value(65, snr);
+        assert!(
+            q > 0.0,
+            "Q-table must grow instead of silently dropping reward"
+        );
+    }
+
+    #[test]
+    fn pf_uses_phy_effective_snr_when_provided() {
+        let mut sched = Scheduler::with_policy(SchedulingPolicy::ProportionalFair);
+        let mut weak_with_phy = UeChannelState::new(UeId(1), SnrLinear::new(1.0));
+        weak_with_phy.apply_phy_gain_db(PowerDb::new(20.0));
+        let strong_no_phy = UeChannelState::new(UeId(2), SnrLinear::new(10.0));
+        let states = vec![weak_with_phy, strong_no_phy];
+        let assignments = sched.schedule_with_csi(&states, 10);
+        assert_eq!(
+            assignments[0].ue,
+            UeId(1),
+            "PHY-enhanced effective SNR must influence PF ordering"
         );
     }
 

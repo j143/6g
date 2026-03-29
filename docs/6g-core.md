@@ -20,7 +20,7 @@ The 6G Core Network handles control-plane signalling for registration, session m
 |---|---|---|
 | **AMF** — Access and Mobility Management | `Amf`, `RegistrationRecord`, `TrackingArea` | UE registration, deregistration, paging; **NTN-aware** tracking area (Terrestrial / NTN enum) |
 | **SMF** — Session Management | `Smf`, `PduSession`, `PduSessionType`, `GoalSpec` | PDU session establishment, IP allocation, release; **6G-new: `PduSessionType::Semantic(GoalSpec)`** |
-| **UPF** — User Plane | `Upf`, `TrafficStats`, `FlowAction` | Traffic forwarding; per-session bearer stats; **6G-new: `forward_semantic_uplink` + `forward_unknown_flow` (user-plane-first)** |
+| **UPF** — User Plane | `Upf`, `TrafficStats`, `FlowAction` | Traffic forwarding; per-session bearer stats; **6G-new: session-type-aware `forward_semantic_uplink` + buffered `forward_unknown_flow` (user-plane-first)** |
 | **PCF** — Policy Control | `Pcf`, `QosPolicy`, `Qci` | QoS policy rules (GBR/MBR/delay budget per slice); dynamic policy update |
 | **NSSF** — Network Slice Selection | `NetworkSliceSelector`, `NetworkSlice`, `SliceType` | Maps UE requests to slice identifiers; per-slice admission control |
 | **AUSF/UDM** — Auth Server + User Data Mgmt | `Ausf`, `Udm`, `SubscriberCredential`, `AuthVector` | Subscriber credential store + 5G-AKA conceptual auth vector derivation |
@@ -61,13 +61,13 @@ In 5G, the UE cannot send data until the control plane completes session setup (
 match upf.forward_unknown_flow(ue, payload) {
     FlowAction::Forwarded(session_id) => { /* forwarded immediately */ }
     FlowAction::TriggerEstablishment(ue) => {
-        // Session runner establishes the session in the background,
-        // then re-injects the buffered packet. No drop.
+        // Session runner establishes the session in the background.
+        // The UPF buffers the payload and auto-flushes it on register_session().
     }
 }
 ```
 
-`CoreNetwork::establish_session` calls `upf.register_session(session_id, ue)` so subsequent packets for the same UE are forwarded without control-plane involvement.
+`CoreNetwork::establish_session` calls `upf.register_session(session_id, ue, pdu_type)` so subsequent packets for the same UE are forwarded without control-plane involvement and semantic encoding is applied only to semantic sessions.
 
 **Reference**: Nokia Bell Labs, *User-Plane-First Architecture for 6G*, 2021.
 

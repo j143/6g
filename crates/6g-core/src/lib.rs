@@ -221,12 +221,12 @@ impl CoreNetwork {
         self.nssf.select(slice)?;
 
         // 2. SMF: allocate session + IP.
-        let session_id = self.smf.establish_session(ue, pdu_type);
+        let session_id = self.smf.establish_session(ue, pdu_type.clone());
         let ip_addr = self.smf.session_ip(session_id)?;
 
         // 3. SMF → UPF linkage: mark bearer allocated + register for lazy lookup.
         self.smf.mark_upf_allocated(session_id);
-        self.upf.register_session(session_id, ue);
+        self.upf.register_session(session_id, ue, pdu_type.clone());
 
         // 4. PCF: add a default slice policy if none exists yet.
         if self.pcf.policy_for_slice(slice).is_none() {
@@ -458,6 +458,11 @@ mod tests {
             action,
             FlowAction::TriggerEstablishment(ue),
             "unregistered UE must trigger lazy session establishment"
+        );
+        assert_eq!(
+            core.upf.buffered_uplink_count(ue),
+            1,
+            "first unknown flow must be buffered in UPF"
         );
     }
 

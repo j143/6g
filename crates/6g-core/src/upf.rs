@@ -26,6 +26,8 @@ use sixg_common::types::{Payload, UeId};
 use sixg_semantic::codec::TextSemanticCodec;
 use sixg_semantic::SemanticCodec;
 
+use crate::smf::PduSessionType;
+
 /// UPF traffic statistics (per-global or per-session).
 #[derive(Debug, Default, Clone)]
 pub struct TrafficStats {
@@ -57,6 +59,10 @@ pub struct Upf {
     bearer_stats: HashMap<u8, TrafficStats>,
     /// Known session → UE mapping for unknown-flow lookup.
     session_ue_map: HashMap<u8, UeId>,
+    /// Session type map used to enforce semantic routing only on semantic PDU sessions.
+    session_type_map: HashMap<u8, PduSessionType>,
+    /// Buffered uplink payloads accepted before session establishment (user-plane-first).
+    pending_uplink: HashMap<UeId, Vec<Payload>>,
 }
 
 impl Upf {
@@ -65,19 +71,37 @@ impl Upf {
             stats: TrafficStats::default(),
             bearer_stats: HashMap::new(),
             session_ue_map: HashMap::new(),
+            session_type_map: HashMap::new(),
+            pending_uplink: HashMap::new(),
         }
     }
 
     /// Register a session → UE mapping so `forward_unknown_flow` can look it up.
     ///
     /// Called by `CoreNetwork::establish_session()` after bearer allocation.
-    pub fn register_session(&mut self, session_id: u8, ue: UeId) {
+    pub fn register_session(&mut self, session_id: u8, ue: UeId, session_type: PduSessionType) {
         self.session_ue_map.insert(session_id, ue);
+        self.session_type_map.insert(session_id, session_type);
+        if let Some(buffered_payloads) = self.pending_uplink.remove(&ue) {
+            let is_semantic = self
+                .session_type_map
+                .get(&session_id)
+                .map(|t| t.is_semantic())
+                .unwrap_or(false);
+            for payload in buffered_payloads {
+                if is_semantic {
+                    let _ = self.forward_semantic_uplink(session_id, &payload);
+                } else {
+                    self.forward_uplink_for_session(session_id, &payload);
+                }
+            }
+        }
     }
 
     /// Unregister a session mapping during teardown.
     pub fn unregister_session(&mut self, session_id: u8) {
         self.session_ue_map.remove(&session_id);
+        self.session_type_map.remove(&session_id);
     }
 
     /// Forward an uplink payload (stub – no actual routing yet).
@@ -128,9 +152,20 @@ impl Upf {
     /// 2. Accumulate *compressed* byte count in global + per-session stats.
     /// 3. Return the encoded [`Payload`] for downstream delivery.
     ///
-    /// Calling this instead of [`forward_uplink_for_session`] signals that
-    /// the session is a semantic (goal-oriented) PDU session.
+    /// The payload is semantically encoded **only** when the registered
+    /// `session_id` is a [`crate::smf::PduSessionType::Semantic`] session.
+    /// For non-semantic sessions, the payload is forwarded raw and counted
+    /// exactly as in [`forward_uplink_for_session`].
     pub fn forward_semantic_uplink(&mut self, session_id: u8, payload: &[u8]) -> Payload {
+        if !self
+            .session_type_map
+            .get(&session_id)
+            .map(|t| t.is_semantic())
+            .unwrap_or(false)
+        {
+            self.forward_uplink_for_session(session_id, payload);
+            return payload.to_vec();
+        }
         let codec = TextSemanticCodec;
         let encoded = codec.encode(payload);
         let len = encoded.len() as u64;
@@ -150,9 +185,12 @@ impl Upf {
     ///
     /// * If a bearer for `ue` exists, the packet is forwarded and
     ///   [`FlowAction::Forwarded(session_id)`] is returned.
-    /// * If no bearer exists, the packet is **not dropped**.  Instead,
-    ///   [`FlowAction::TriggerEstablishment(ue)`] is returned so the caller
-    ///   can trigger background SMF session establishment and re-inject.
+    /// * If no bearer exists, the packet is buffered in-memory and **not
+    ///   dropped**.  [`FlowAction::TriggerEstablishment(ue)`] is returned so
+    ///   the caller can trigger background SMF session establishment.
+    ///
+    /// Buffered payloads are auto-forwarded when [`register_session`] is
+    /// called for the same `ue`.
     ///
     /// Reference: Nokia Bell Labs, *User-Plane-First Architecture for 6G*,
     /// 2021 White Paper.
@@ -162,9 +200,18 @@ impl Upf {
             self.forward_uplink_for_session(session_id, payload);
             FlowAction::Forwarded(session_id)
         } else {
-            // No session — signal lazy establishment without dropping.
+            // No session — buffer packet and signal lazy establishment.
+            self.pending_uplink
+                .entry(ue)
+                .or_default()
+                .push(payload.to_vec());
             FlowAction::TriggerEstablishment(ue)
         }
+    }
+
+    /// Number of buffered uplink payloads awaiting session establishment for `ue`.
+    pub fn buffered_uplink_count(&self, ue: UeId) -> usize {
+        self.pending_uplink.get(&ue).map_or(0, Vec::len)
     }
 
     /// Return per-session bearer statistics for `session_id`, if any traffic
@@ -197,7 +244,10 @@ impl Default for Upf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::smf::GoalSpec;
     use sixg_common::types::UeId;
+    use sixg_semantic::codec::{BandwidthReduction, TaskSuccessRate};
+    use sixg_semantic::SemanticTask;
 
     #[test]
     fn forward_uplink_accumulates_bytes() {
@@ -268,6 +318,12 @@ mod tests {
     #[test]
     fn semantic_uplink_compresses_payload() {
         let mut upf = Upf::new();
+        let goal = GoalSpec {
+            task: SemanticTask::TextUnderstanding,
+            min_success_rate: TaskSuccessRate(0.90),
+            max_bandwidth_reduction: BandwidthReduction(10.0),
+        };
+        upf.register_session(1, UeId(1), PduSessionType::Semantic(goal));
         let raw = b"the quick brown fox jumps over the lazy dog ".repeat(5); // 220 bytes
         let encoded = upf.forward_semantic_uplink(1, &raw);
         // Codec output is always 64 bytes.
@@ -298,8 +354,9 @@ mod tests {
             FlowAction::TriggerEstablishment(ue),
             "unknown UE must request lazy establishment"
         );
-        // Packet is not counted (not forwarded).
+        // Packet is buffered, not dropped.
         assert_eq!(upf.stats.bytes_uplink, 0);
+        assert_eq!(upf.buffered_uplink_count(ue), 1);
     }
 
     /// User-plane-first: packet for known UE is forwarded immediately.
@@ -307,7 +364,7 @@ mod tests {
     fn known_flow_is_forwarded_immediately() {
         let mut upf = Upf::new();
         let ue = UeId(7);
-        upf.register_session(1, ue);
+        upf.register_session(1, ue, PduSessionType::Ip);
         let action = upf.forward_unknown_flow(ue, b"payload");
         assert_eq!(
             action,
@@ -315,5 +372,37 @@ mod tests {
             "known UE must be forwarded immediately"
         );
         assert_eq!(upf.stats.bytes_uplink, 7, "bytes must be counted");
+    }
+
+    #[test]
+    fn buffered_unknown_flow_is_flushed_on_session_registration() {
+        let mut upf = Upf::new();
+        let ue = UeId(8);
+        assert_eq!(
+            upf.forward_unknown_flow(ue, b"first"),
+            FlowAction::TriggerEstablishment(ue)
+        );
+        assert_eq!(upf.buffered_uplink_count(ue), 1);
+        upf.register_session(3, ue, PduSessionType::Ip);
+        assert_eq!(upf.buffered_uplink_count(ue), 0);
+        assert_eq!(
+            upf.stats.bytes_uplink, 5,
+            "buffered payload must be forwarded"
+        );
+    }
+
+    #[test]
+    fn non_semantic_session_is_not_semantically_encoded() {
+        let mut upf = Upf::new();
+        let ue = UeId(9);
+        upf.register_session(4, ue, PduSessionType::Ip);
+        let payload = b"plain ip packet data";
+        let out = upf.forward_semantic_uplink(4, payload);
+        assert_eq!(out, payload, "IP session must forward payload unmodified");
+        assert_eq!(
+            upf.stats.bytes_uplink as usize,
+            payload.len(),
+            "IP session accounting must use raw bytes"
+        );
     }
 }
