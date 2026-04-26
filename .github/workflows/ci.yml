@@ -82,6 +82,8 @@ jobs:
   matrix-features:
     name: Feature matrix (${{ matrix.features }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         features:
