@@ -3,6 +3,50 @@
 A Rust skeleton for a 6G wireless system stack, inspired by
 [Qualcomm's 6G System Architecture research](https://www.qualcomm.com/research/6g/system-architecture).
 
+## Quickstart (30 seconds)
+
+```bash
+git clone https://github.com/j143/6g && cd 6g
+./install.sh           # installs Rust if needed, builds the bench
+./target/release/sixg-bench list          # list all experiments
+./target/release/sixg-bench run --all     # run all 9 experiments
+./target/release/sixg-bench validate      # run all Validate checks
+```
+
+### With optional packages
+
+```bash
+./install.sh --baselines   # + Level-2 CSV baseline comparisons
+./install.sh --plotting    # + Python matplotlib plots
+./install.sh --onnx        # + real ONNX sentence-transformer inference
+./install.sh --all         # everything above
+```
+
+### Docker (zero-install)
+
+```bash
+# Core bench
+docker run --rm ghcr.io/j143/6g sixg-bench run --all
+
+# With baseline comparisons
+docker-compose run bench-baselines
+
+# With ONNX inference (place models/all-MiniLM-L6-v2.onnx in repo root first)
+docker-compose run bench-onnx
+```
+
+### Plotting
+
+```bash
+pip install -r requirements-plot.txt
+python3 scripts/plot_phy.py      # PHY: path loss + BER curves
+python3 scripts/plot_mac.py      # MAC: Jain fairness + HARQ rounds
+python3 scripts/plot_isac.py     # ISAC: DFRC Pareto frontier
+python3 scripts/plot_semantic.py # Semantic: compression vs task success
+```
+
+---
+
 ## Architecture
 
 The workspace is organised as a set of Cargo crates, each representing a
@@ -83,18 +127,29 @@ Cross-cutting subsystems
 
 ### Prerequisites
 
-* Rust 1.70 or later (`rustup update stable`)
+* Rust 1.70 or later (the `install.sh` script installs it automatically if absent)
 
-### Build
+### One-command setup
 
 ```bash
-cargo build
+./install.sh
+./target/release/sixg-bench --help
 ```
 
-### Run
+### Manual build
 
 ```bash
-cargo run
+cargo build --release
+./target/release/sixg-bench list
+```
+
+### Run experiments
+
+```bash
+cargo run --example exp_001_dfrc_pareto_frontier
+cargo run --example exp_002_phy_baseline_comparison
+# … or run all via the bench:
+./target/release/sixg-bench run --all
 ```
 
 ### Test

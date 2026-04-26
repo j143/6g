@@ -9,3 +9,7 @@ sixg-common = { path = "../6g-common" }
 sixg-ai     = { path = "../6g-ai" }
 thiserror.workspace = true
 serde.workspace = true
+
+[features]
+## Propagate the ONNX tier from 6g-ai.
+onnx = ["sixg-ai/onnx"]

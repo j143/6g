@@ -1,0 +1,56 @@
+# ── Stage 1: builder (ONNX tier) ─────────────────────────────────────────────
+FROM rust:1.79-slim AS builder
+
+# ort (ONNX Runtime Rust bindings) requires libonnxruntime.
+# The build-time auto-download fetches it into /usr/local/lib.
+ENV ORT_DYLIB_PATH=/usr/local/lib
+ENV LIBONNXRUNTIME_URL=https://github.com/microsoft/onnxruntime/releases/download/v1.18.0/onnxruntime-linux-x64-1.18.0.tgz
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl tar pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "$LIBONNXRUNTIME_URL" -o /tmp/ort.tgz \
+    && tar -xzf /tmp/ort.tgz -C /tmp \
+    && cp /tmp/onnxruntime-linux-x64-*/lib/libonnxruntime.so* /usr/local/lib/ \
+    && ldconfig \
+    && rm -rf /tmp/ort.tgz /tmp/onnxruntime-linux-x64-*
+
+WORKDIR /build
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+COPY src/ src/
+COPY experiments/ experiments/
+
+# Build with the full onnx feature tier.
+RUN cargo build --release --features=onnx \
+    && cargo build --release --examples --features=onnx
+
+# ── Stage 2: runtime (ONNX tier) ─────────────────────────────────────────────
+FROM debian:bookworm-slim AS runtime
+
+LABEL org.opencontainers.image.title="sixg-bench (ONNX tier)" \
+      org.opencontainers.image.description="6G bench with real ONNX sentence-transformer" \
+      org.opencontainers.image.source="https://github.com/j143/6g" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /bench
+
+COPY --from=builder /usr/local/lib/libonnxruntime.so* /usr/local/lib/
+RUN ldconfig
+
+COPY --from=builder /build/target/release/sixg-bench /usr/local/bin/sixg-bench
+COPY --from=builder /build/target/release/examples/ /bench/target/release/examples/
+COPY experiments/ /bench/experiments/
+COPY baselines/ /bench/baselines/
+
+ENV SIXG_BASELINES=/bench/baselines
+# Mount your .onnx model file at this path to enable real inference:
+ENV SIXG_ONNX_MODEL=/bench/models/all-MiniLM-L6-v2.onnx
+
+ENTRYPOINT ["sixg-bench"]
+CMD ["--help"]

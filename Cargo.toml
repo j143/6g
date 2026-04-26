@@ -8,6 +8,10 @@ license.workspace = true
 name = "sixg"
 path = "src/main.rs"
 
+[[bin]]
+name = "sixg-bench"
+path = "src/bin/bench.rs"
+
 [[example]]
 name = "exp_001_dfrc_pareto_frontier"
 path = "experiments/exp_001_dfrc_pareto_frontier/run.rs"
@@ -60,6 +64,19 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[features]
+## Core tier: zero native dependencies.  Always enabled.
+default = []
+## Baseline tier: enable Level-2 CSV baseline comparison tests in 6g-phy.
+## Activate with: cargo build --features=baseline-comparison
+baseline-comparison = ["sixg-phy/baseline-comparison"]
+## ONNX tier: gate real ort-based ONNX sentence-transformer inference.
+## Requires libonnxruntime and a model file.  See install.sh --onnx.
+onnx = ["sixg-ai/onnx", "sixg-semantic/onnx"]
+## Plotting tier: compile-time marker enabling CSV / JSON artefact output.
+## Python plots are handled separately via scripts/plot_*.py.
+plotting = []
 
 [workspace]
 resolver = "2"

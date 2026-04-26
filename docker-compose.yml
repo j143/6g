@@ -1,0 +1,35 @@
+services:
+  # ── Tier 1: Core bench (zero native dependencies) ───────────────────────
+  bench:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sixg-bench:core
+    command: ["validate"]
+    volumes:
+      - ./baselines:/bench/baselines:ro
+
+  # ── Tier 2: Baseline-comparison bench ────────────────────────────────────
+  bench-baselines:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CARGO_FEATURES: "baseline-comparison"
+    image: sixg-bench:baselines
+    command: ["validate", "--baselines"]
+    volumes:
+      - ./baselines:/bench/baselines:ro
+
+  # ── Tier 4: ONNX bench (real sentence-transformer inference) ─────────────
+  bench-onnx:
+    build:
+      context: .
+      dockerfile: Dockerfile.onnx
+    image: sixg-bench:onnx
+    command: ["run", "exp_008"]
+    volumes:
+      - ./baselines:/bench/baselines:ro
+      # Mount your model file: docker-compose run bench-onnx
+      # after placing models/all-MiniLM-L6-v2.onnx in the repo root.
+      - ./models:/bench/models:ro
