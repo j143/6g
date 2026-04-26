@@ -8,3 +8,9 @@ license.workspace = true
 sixg-common = { path = "../6g-common" }
 thiserror.workspace = true
 serde.workspace = true
+
+[features]
+## ONNX tier: enable real ort-based ONNX inference.
+## Requires libonnxruntime.so and a model file; see install.sh --onnx.
+## Without this feature the built-in deterministic simulation is used.
+onnx = []

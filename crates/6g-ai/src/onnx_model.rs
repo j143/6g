@@ -5,20 +5,21 @@
 //! a 128-dimensional word-hash feature vector to a 32-dimensional L2-normalised
 //! semantic embedding.
 //!
-//! ## Why simulate rather than use the ONNX runtime?
+//! ## Simulation vs real ONNX runtime
 //!
-//! The `ort` crate requires a native `libonnxruntime` shared library and a
-//! pre-trained model file — both are infeasible to bundle in a pure-Rust
-//! workspace CI.  This module implements the same **interface** as a real ONNX
-//! model so that:
+//! **Without `--features=onnx`** (default): the built-in deterministic MLP
+//! simulation is used — no native library or model file is required.
 //!
-//! 1. The API is stable and ready to swap in `ort::Session` when the runtime
-//!    and model file are available (see `docs/6g-ai.md`).
-//! 2. The closed-form approximation produces semantically-informed embeddings
-//!    (similar texts → similar embeddings via shared word-hash features) without
-//!    a runtime dependency.
+//! **With `--features=onnx`**: the `onnx` feature flag is set, and
+//! `cfg!(feature = "onnx")` is `true` at runtime.  Callers that want to
+//! swap in `ort::Session` (the real ONNX Runtime) should check this flag
+//! and load the model file from the path in `SIXG_ONNX_MODEL`.  The
+//! public API ([`OnnxModel::forward`], [`AiModel::predict`]) is identical
+//! in both modes so downstream code needs no changes.
 //!
-//! ## Mathematical model
+//! See `install.sh --onnx` and `docs/6g-ai.md` for the setup steps.
+//!
+//! ## Mathematical model (simulation)
 //!
 //! ```text
 //! x  ← 128-dim L2-normalised word-hash feature vector (f32)

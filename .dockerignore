@@ -1,0 +1,21 @@
+# Files that don't need to be in the Docker build context
+.git
+target/
+.github/
+docs/
+*.md
+*.png
+*.svg
+*.pdf
+
+# Python artefacts
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
