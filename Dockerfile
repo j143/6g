@@ -1,6 +1,6 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Uses the official Rust slim image so cargo + rustc are pre-installed.
-FROM rust:1.82-slim AS builder
+FROM rust:1.87-slim AS builder
 
 WORKDIR /build
 
