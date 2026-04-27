@@ -169,7 +169,7 @@ impl Nrf {
             .values()
             .filter(|p| p.nf_type == nf_type && p.active)
             .collect();
-        matches.sort_by(|a, b| b.capacity.cmp(&a.capacity));
+        matches.sort_by_key(|b| std::cmp::Reverse(b.capacity));
         matches
     }
 
@@ -185,7 +185,7 @@ impl Nrf {
             .values()
             .filter(|p| p.active && p.has_capability(capability))
             .collect();
-        matches.sort_by(|a, b| b.capacity.cmp(&a.capacity));
+        matches.sort_by_key(|b| std::cmp::Reverse(b.capacity));
         matches
     }
 
