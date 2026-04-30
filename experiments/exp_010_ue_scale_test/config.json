@@ -1,0 +1,15 @@
+{
+  "comment": "exp_010 reproducible parameter set — UE scale test",
+
+  "ues": 512,
+  "n_tti": 1000,
+  "total_rbs": 273,
+
+  "ue_snr_min_db": 0.0,
+  "ue_snr_max_db": 30.0,
+
+  "smoke_test": {
+    "ues": 512,
+    "n_tti": 100
+  }
+}
