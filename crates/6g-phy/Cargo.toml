@@ -16,3 +16,8 @@ serde.workspace = true
 baseline-comparison = []
 
 [dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "phy_capacity"
+harness = false

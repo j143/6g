@@ -24,7 +24,142 @@
 use serde::{Deserialize, Serialize};
 use sixg_common::types::{FrequencyBand, SnrDb};
 
-/// Waveform scheme used by the 6G air interface.
+/// Hardware impairment parameters that degrade effective SNR.
+///
+/// All fields are `Option` so they can be selectively enabled without affecting
+/// experiments that run under the ideal-hardware assumption.  When all fields
+/// are `None`, `effective_snr_db` returns the input SNR unchanged.
+///
+/// # Reference
+/// - Phase noise: Khanzadi et al., *Capacity of Gaussian Channels with
+///   Phase Noise*, IEEE Trans. Commun. 2014
+/// - IQ imbalance: Windisch & Fettweis, *Performance Degradation Due to
+///   IQ Imbalance in OFDM*, IEEE Commun. Lett. 2004
+/// - ADC quantisation: SQNR = 6.02·b + 1.76 dB (Widrow & Kollár 2008,
+///   *Quantization Noise*)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WaveformImpairments {
+    /// Phase noise one-sided PSD floor in dBc/Hz (typically −100 to −80 dBc/Hz
+    /// at sub-THz carrier frequencies).  Models oscillator phase noise as an
+    /// additive white Gaussian phase perturbation over the OFDM symbol duration.
+    ///
+    /// Effective SNR ceiling: `SNR_max_dB = −10·log10(2π·L₀·T_sym)`
+    /// where `L₀` is the phase noise PSD and `T_sym` is the OFDM symbol duration.
+    ///
+    /// Set to `None` to disable (ideal oscillator).
+    pub phase_noise_dbc_hz: Option<f64>,
+
+    /// IQ imbalance expressed as Image Interference Ratio (IIR) in dB (positive).
+    ///
+    /// Models the signal degradation due to amplitude and phase mismatch between
+    /// the I and Q branches of the analogue front-end.  The effective SNR ceiling
+    /// imposed by IQ imbalance is `SNR_max_dB = IIR_dB`.
+    ///
+    /// Typical values: 25 – 40 dB for practical RF hardware.
+    ///
+    /// Set to `None` to disable (perfect IQ balance).
+    pub iq_imbalance_db: Option<f64>,
+
+    /// ADC resolution in bits (typically 8 – 16 for 6G receivers).
+    ///
+    /// Models quantisation noise.  Signal-to-Quantisation-Noise Ratio (SQNR):
+    /// `SQNR_dB = 6.02·b + 1.76  [dB]`
+    /// (Widrow & Kollár, *Quantization Noise*, Cambridge 2008, eq. 3.2).
+    ///
+    /// The ADC is the binding constraint only when `SQNR < SNR_signal`.  At 6G
+    /// bandwidths (multi-GHz), even a 10-bit ADC clips at high SNR.
+    ///
+    /// Set to `None` to disable (infinite-precision ADC).
+    pub adc_bits: Option<u8>,
+}
+
+impl WaveformImpairments {
+    /// Create impairments with all effects disabled (ideal hardware).
+    pub fn ideal() -> Self {
+        Self {
+            phase_noise_dbc_hz: None,
+            iq_imbalance_db: None,
+            adc_bits: None,
+        }
+    }
+
+    /// Create a typical sub-THz hardware profile.
+    ///
+    /// Phase noise: −90 dBc/Hz, IQ imbalance: 30 dB IIR, ADC: 10 bits.
+    pub fn typical_subthz() -> Self {
+        Self {
+            phase_noise_dbc_hz: Some(-90.0),
+            iq_imbalance_db: Some(30.0),
+            adc_bits: Some(10),
+        }
+    }
+
+    /// Compute the effective receive SNR after all enabled impairments.
+    ///
+    /// Each enabled impairment contributes an SNR ceiling.  The result is the
+    /// harmonic mean (i.e. the minimum in the noise-power domain):
+    ///
+    /// `1/SNR_eff = 1/SNR_signal + 1/SNR_phase_noise + 1/SNR_iq + 1/SQNR`
+    ///
+    /// Returns the effective SNR in dB.
+    ///
+    /// # Arguments
+    /// * `signal_snr` — received signal SNR without hardware impairments (dB).
+    /// * `symbol_duration_us` — OFDM symbol duration in microseconds (used for
+    ///   phase noise SNR ceiling calculation).
+    pub fn effective_snr_db(&self, signal_snr: SnrDb, symbol_duration_us: f64) -> SnrDb {
+        let snr_linear = 10f64.powf(signal_snr.0 / 10.0);
+        let mut noise_sum = 1.0 / snr_linear; // signal noise floor
+
+        if let Some(l0_dbc_hz) = self.phase_noise_dbc_hz {
+            let snr_pn = phase_noise_snr_linear(l0_dbc_hz, symbol_duration_us);
+            noise_sum += 1.0 / snr_pn;
+        }
+
+        if let Some(iir_db) = self.iq_imbalance_db {
+            let snr_iq = 10f64.powf(iir_db / 10.0);
+            noise_sum += 1.0 / snr_iq;
+        }
+
+        if let Some(bits) = self.adc_bits {
+            let sqnr = adc_sqnr_linear(bits);
+            noise_sum += 1.0 / sqnr;
+        }
+
+        let snr_eff_linear = 1.0 / noise_sum;
+        SnrDb(10.0 * snr_eff_linear.log10())
+    }
+}
+
+/// SNR ceiling imposed by phase noise (linear ratio).
+///
+/// For a white phase noise model with one-sided PSD `L₀` (in dBc/Hz), the
+/// total integrated phase variance over the OFDM symbol bandwidth `Δf = 1/T_sym`
+/// is `σ²_φ = 2 · L₀ · Δf`.  The SNR ceiling is then:
+///
+/// `SNR_pn = 1 / σ²_φ = T_sym / (2 · L₀_linear)`
+///
+/// Reference: Pollet et al., *BER Sensitivity of OFDM to CFO and Wiener Phase
+/// Noise*, IEEE Trans. Commun. 1995.
+pub fn phase_noise_snr_linear(l0_dbc_hz: f64, symbol_duration_us: f64) -> f64 {
+    let l0_linear = 10f64.powf(l0_dbc_hz / 10.0); // dBc/Hz → linear/Hz
+    let t_sym_s = symbol_duration_us * 1e-6;
+    t_sym_s / (2.0 * l0_linear)
+}
+
+/// Signal-to-Quantisation-Noise Ratio (SQNR) in linear for a b-bit ADC.
+///
+/// `SQNR_dB = 6.02·b + 1.76` (Widrow & Kollár 2008, eq. 3.2).
+pub fn adc_sqnr_linear(bits: u8) -> f64 {
+    let sqnr_db = 6.02 * bits as f64 + 1.76;
+    10f64.powf(sqnr_db / 10.0)
+}
+
+/// SQNR in dB for a b-bit ADC.
+pub fn adc_sqnr_db(bits: u8) -> SnrDb {
+    SnrDb(6.02 * bits as f64 + 1.76)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Waveform {
     /// Cyclic-Prefix OFDM – baseline waveform (adapted from 5G NR).
@@ -266,6 +401,96 @@ mod tests {
         assert!(
             (ber_awgn - ber_zero_doppler).abs() < 1e-15,
             "OTFS BER with zero Doppler must match AWGN bound"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Hardware impairment model tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn adc_sqnr_10bit_matches_formula() {
+        // SQNR = 6.02·10 + 1.76 = 61.96 dB  (Widrow & Kollár 2008, eq. 3.2)
+        let sqnr = adc_sqnr_db(10);
+        assert!(
+            (sqnr.0 - 61.96).abs() < 0.01,
+            "10-bit ADC SQNR should be ~61.96 dB, got {:.2}",
+            sqnr.0
+        );
+    }
+
+    #[test]
+    fn adc_sqnr_increases_with_bits() {
+        let sqnr_8 = adc_sqnr_db(8).0;
+        let sqnr_12 = adc_sqnr_db(12).0;
+        assert!(
+            sqnr_12 > sqnr_8,
+            "Higher ADC bits must give higher SQNR: {sqnr_8:.1} vs {sqnr_12:.1}"
+        );
+        // Each extra bit adds ~6 dB
+        let delta = sqnr_12 - sqnr_8;
+        assert!(
+            (delta - 24.08).abs() < 0.1,
+            "4-bit increase should add ~24.08 dB, got {delta:.2}"
+        );
+    }
+
+    #[test]
+    fn phase_noise_snr_ceiling_decreases_with_higher_psd() {
+        // Worse phase noise (less negative dBc/Hz) → lower SNR ceiling
+        let snr_good = phase_noise_snr_linear(-100.0, 33.3); // −100 dBc/Hz
+        let snr_bad = phase_noise_snr_linear(-80.0, 33.3); // −80 dBc/Hz
+        assert!(
+            snr_good > snr_bad,
+            "Better oscillator (lower PSD) must yield higher SNR ceiling"
+        );
+    }
+
+    #[test]
+    fn ideal_impairments_preserve_snr() {
+        let ideal = WaveformImpairments::ideal();
+        let snr_in = SnrDb(20.0);
+        // For ideal hardware: 1/SNR_eff = 1/SNR_in only → SNR_eff = SNR_in
+        let snr_out = ideal.effective_snr_db(snr_in, 33.3);
+        assert!(
+            (snr_out.0 - 20.0).abs() < 1e-9,
+            "Ideal impairments must preserve SNR exactly, got {:.6}",
+            snr_out.0
+        );
+    }
+
+    #[test]
+    fn impairments_reduce_effective_snr() {
+        // With any enabled impairment, effective SNR must be ≤ input SNR
+        let impairments = WaveformImpairments {
+            phase_noise_dbc_hz: Some(-90.0),
+            iq_imbalance_db: Some(30.0),
+            adc_bits: Some(10),
+        };
+        let snr_in = SnrDb(40.0); // high signal SNR — impairments are dominant
+        let snr_eff = impairments.effective_snr_db(snr_in, 33.3);
+        assert!(
+            snr_eff.0 < snr_in.0,
+            "Impairments must reduce effective SNR: {:.2} < {:.2}",
+            snr_eff.0,
+            snr_in.0
+        );
+    }
+
+    #[test]
+    fn iq_imbalance_limits_snr_ceiling() {
+        // IQ imbalance of 30 dB limits SNR ceiling to 30 dB
+        let impairments = WaveformImpairments {
+            phase_noise_dbc_hz: None,
+            iq_imbalance_db: Some(30.0),
+            adc_bits: None,
+        };
+        // At high input SNR (60 dB), output should be close to 30 dB ceiling
+        let snr_eff = impairments.effective_snr_db(SnrDb(60.0), 33.3);
+        assert!(
+            snr_eff.0 < 31.0,
+            "IQ imbalance 30 dB should cap effective SNR, got {:.2}",
+            snr_eff.0
         );
     }
 }

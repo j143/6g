@@ -23,7 +23,8 @@ use sixg_common::{
 
 use crate::{
     spectrum::fspl_db,
-    waveform::{bpsk_ber_awgn, ofdm_ber_high_doppler},
+    waveform::{adc_sqnr_db, bpsk_ber_awgn, ofdm_ber_high_doppler, phase_noise_snr_linear,
+               WaveformImpairments},
 };
 
 /// Phase-1 analytical validation for the `6g-phy` crate.
@@ -87,6 +88,43 @@ impl Validate for PhyValidation {
                         ber_ofdm / ber_otfs, // actual ratio
                         4.0,                 // expected: ~4× advantage (ber_ofdm/ber_otfs ≈ 4.0)
                         10.0,                // ≤ 10 % tolerance on the ratio
+                    )
+                },
+                // ------------------------------------------------------------------
+                // Hardware impairment checks
+                // ------------------------------------------------------------------
+
+                // ADC SQNR: 10-bit ADC → 6.02·10 + 1.76 = 61.96 dB (Widrow & Kollár 2008)
+                ValidationCheck::new(
+                    "adc_sqnr_10bit_db",
+                    adc_sqnr_db(10).0,
+                    61.96,
+                    0.1, // formula is exact — ≤ 0.1 % tolerance
+                ),
+                // Phase noise: −90 dBc/Hz, T_sym = 33.3 µs (30 kHz SCS)
+                // σ²_φ = 2 × L₀ × Δf = 2 × 10^(−9) × 30 000 = 6×10⁻⁵ rad²
+                // SNR_pn = T_sym / (2 × L₀) = 33.3e-6 / (2×10⁻⁹) ≈ 16 650 ≈ 42.2 dB
+                // Reference: Pollet et al., IEEE Trans. Commun. 1995
+                {
+                    let snr_pn_linear = phase_noise_snr_linear(-90.0, 33.3);
+                    let snr_pn_db = 10.0 * snr_pn_linear.log10();
+                    ValidationCheck::new(
+                        "phase_noise_snr_ceiling_m90dbc_30khz_scs",
+                        snr_pn_db,
+                        42.2,
+                        2.0, // ≤ 2 % tolerance (approximate model)
+                    )
+                },
+                // WaveformImpairments: ideal hardware returns input SNR unchanged
+                {
+                    let ideal = WaveformImpairments::ideal();
+                    let snr_in = SnrDb(20.0);
+                    let snr_out = ideal.effective_snr_db(snr_in, 33.3);
+                    ValidationCheck::new(
+                        "ideal_impairments_preserves_snr",
+                        snr_out.0,
+                        20.0,
+                        0.01, // must be numerically exact
                     )
                 },
             ],
