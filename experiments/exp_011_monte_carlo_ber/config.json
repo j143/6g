@@ -1,0 +1,12 @@
+{
+  "comment": "exp_011 reproducible parameter set — Monte Carlo BER",
+
+  "n_samples": 10000,
+  "snr_min_db": 0.0,
+  "snr_max_db": 20.0,
+  "snr_step_db": 1.0,
+  "carrier_freq_ghz": 28.0,
+  "subcarrier_spacing_khz": 30.0,
+  "velocity_kmh": 250.0,
+  "ci_tolerance_pct": 10.0
+}

@@ -1,0 +1,11 @@
+{
+  "comment": "exp_012 reproducible parameter set — multi-cell interference",
+
+  "n_cells": 19,
+  "inter_site_distances_m": [100, 200, 300, 400, 500],
+  "carrier_freq_ghz": 28.0,
+  "tx_power_dbm": 43.0,
+  "noise_figure_db": 7.0,
+  "sinr_median_ref_db": 10.0,
+  "sinr_median_tolerance_db": 5.0
+}
