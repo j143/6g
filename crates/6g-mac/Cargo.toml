@@ -10,3 +10,10 @@ sixg-phy    = { path = "../6g-phy" }
 sixg-ai     = { path = "../6g-ai" }
 thiserror.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "mac_capacity"
+harness = false

@@ -13,3 +13,10 @@ serde.workspace = true
 [features]
 ## Propagate the ONNX tier from 6g-ai.
 onnx = ["sixg-ai/onnx"]
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "semantic_capacity"
+harness = false

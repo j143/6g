@@ -17,12 +17,28 @@ Models the 6G air interface physical layer. Entry point: `PhyLayer`. This is the
 
 ### `waveform.rs` — Air Interface Waveforms
 
-Key types: `WaveformType` (enum), `OfdmConfig`, `OtfsConfig`.
+Key types: `Waveform` (enum), `WaveformImpairments`.
 5G baseline: CP-OFDM (15/30/120 kHz SCS). 6G extensions:
 
 - **DFT-s-OFDM** at sub-THz SCS (480 kHz) for reduced PAPR.
 - **OTFS** (Orthogonal Time Frequency Space): operates in the delay-Doppler domain. Key advantage: compact channel representation for high-mobility scenarios (LEO passes, fast vehicles). Reference: Hadani et al., IEEE WCNC 2017.
 - **AI-Native**: learned waveform where subcarrier shaping is encoded in a latent vector. Placeholder for Phase 5.
+
+#### `WaveformImpairments` — Hardware Impairment Models
+
+Struct capturing three analogue front-end impairments that degrade effective SNR.
+All fields are `Option` — set to `None` for ideal (impairment-free) simulation.
+
+| Field | Model | Reference |
+|-------|-------|-----------|
+| `phase_noise_dbc_hz` | `SNR_pn = T_sym / (2 · L₀)` | Pollet et al., IEEE Trans. Commun. 1995 |
+| `iq_imbalance_db` | `SNR_max = IIR_dB` (ceiling) | Windisch & Fettweis, IEEE Commun. Lett. 2004 |
+| `adc_bits` | `SQNR = 6.02·b + 1.76 dB` | Widrow & Kollár, *Quantization Noise* 2008 |
+
+The effective SNR after all impairments combines them in the noise-power domain:
+`1/SNR_eff = 1/SNR_signal + 1/SNR_pn + 1/SNR_iq + 1/SQNR`
+
+Public functions: `phase_noise_snr_linear`, `adc_sqnr_linear`, `adc_sqnr_db`.
 
 ### `spectrum.rs` — THz Spectrum Modeling
 
@@ -79,3 +95,6 @@ See `experiments/exp_002_phy_baseline_comparison/` for the runnable experiment.
 - Basar et al., *Wireless Communications Through RIS*, IEEE Access 2019
 - Björnson et al., *Massive MIMO Networks*, Foundations and Trends 2017
 - 3GPP TR 38.901 (CDL channel models)
+- Pollet et al., *BER Sensitivity of OFDM to CFO and Wiener Phase Noise*, IEEE Trans. Commun. 1995
+- Widrow & Kollár, *Quantization Noise*, Cambridge 2008
+- Windisch & Fettweis, *Performance Degradation Due to IQ Imbalance in OFDM*, IEEE Commun. Lett. 2004
