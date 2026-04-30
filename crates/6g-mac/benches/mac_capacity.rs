@@ -23,9 +23,7 @@ fn bench_scheduler_scale(c: &mut Criterion) {
     for &n_ues in &[8usize, 64, 128, 256, 512] {
         // Build channel states with varied SNR (linear 1..n_ues).
         let states: Vec<UeChannelState> = (0..n_ues)
-            .map(|i| {
-                UeChannelState::new(UeId(i as u64), SnrLinear::new(1.0 + i as f64 * 0.5))
-            })
+            .map(|i| UeChannelState::new(UeId(i as u64), SnrLinear::new(1.0 + i as f64 * 0.5)))
             .collect();
 
         const TOTAL_RBS: usize = 273;
@@ -85,9 +83,7 @@ fn bench_harq_rounds_distribution(c: &mut Criterion) {
     let mut group = c.benchmark_group("harq_rounds_distribution");
 
     // SNR linear values from −5 dB to 20 dB
-    let snr_values: Vec<f64> = (-5..=20)
-        .map(|db| 10f64.powf(db as f64 / 10.0))
-        .collect();
+    let snr_values: Vec<f64> = (-5..=20).map(|db| 10f64.powf(db as f64 / 10.0)).collect();
 
     const N_SAMPLES: usize = 10_000;
 
@@ -95,7 +91,11 @@ fn bench_harq_rounds_distribution(c: &mut Criterion) {
     group.bench_function("chase_combining_10k_samples", |b| {
         b.iter(|| {
             let mut rounds_total = 0u64;
-            for (i, &snr) in snr_values.iter().enumerate().take(N_SAMPLES % snr_values.len() + 1) {
+            for (i, &snr) in snr_values
+                .iter()
+                .enumerate()
+                .take(N_SAMPLES % snr_values.len() + 1)
+            {
                 let mut buf = ChaseCombineBuffer::default();
                 let mut rounds = 0u8;
                 while !buf.can_decode() && rounds < 8 {
@@ -117,13 +117,9 @@ fn bench_jain_fairness(c: &mut Criterion) {
 
     for &n_ues in &[8usize, 64, 256, 512, 1024] {
         let throughputs: Vec<f64> = (1..=n_ues).map(|i| i as f64 * 1e6).collect();
-        group.bench_with_input(
-            BenchmarkId::new("ues", n_ues),
-            &throughputs,
-            |b, tp| {
-                b.iter(|| black_box(jain_fairness(black_box(tp))))
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("ues", n_ues), &throughputs, |b, tp| {
+            b.iter(|| black_box(jain_fairness(black_box(tp))))
+        });
     }
     group.finish();
 }

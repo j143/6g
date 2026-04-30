@@ -8,13 +8,13 @@
 //!   cargo bench -p sixg-phy --bench phy_capacity
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use sixg_common::types::SnrDb;
 use sixg_common::types::{Distance, Frequency, SnrLinear};
 use sixg_phy::{
     path_loss_db,
     ris::{RisChannel, RisConfig},
     waveform::{bpsk_ber_awgn, Waveform},
 };
-use sixg_common::types::SnrDb;
 
 /// Benchmark path loss computation across a range of batch sizes.
 ///

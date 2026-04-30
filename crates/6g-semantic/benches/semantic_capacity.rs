@@ -19,21 +19,15 @@ fn bench_semantic_encode_throughput(c: &mut Criterion) {
 
     // Payload sizes: 64 B, 512 B, 4 KB, 16 KB, 64 KB
     for &size in &[64usize, 512, 4_096, 16_384, 65_536] {
-        let payload: Vec<u8> = (0..size)
-            .map(|i| b'a' + (i % 26) as u8)
-            .collect();
+        let payload: Vec<u8> = (0..size).map(|i| b'a' + (i % 26) as u8).collect();
 
         group.throughput(Throughput::Bytes(size as u64));
-        group.bench_with_input(
-            BenchmarkId::new("payload_bytes", size),
-            &payload,
-            |b, p| {
-                b.iter(|| {
-                    let encoded = codec.encode(black_box(p));
-                    black_box(encoded)
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("payload_bytes", size), &payload, |b, p| {
+            b.iter(|| {
+                let encoded = codec.encode(black_box(p));
+                black_box(encoded)
+            })
+        });
     }
     group.finish();
 }

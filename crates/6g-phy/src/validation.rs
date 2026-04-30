@@ -23,8 +23,10 @@ use sixg_common::{
 
 use crate::{
     spectrum::fspl_db,
-    waveform::{adc_sqnr_db, bpsk_ber_awgn, ofdm_ber_high_doppler, phase_noise_snr_linear,
-               WaveformImpairments},
+    waveform::{
+        adc_sqnr_db, bpsk_ber_awgn, ofdm_ber_high_doppler, phase_noise_snr_linear,
+        WaveformImpairments,
+    },
 };
 
 /// Phase-1 analytical validation for the `6g-phy` crate.

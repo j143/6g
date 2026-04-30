@@ -8,12 +8,12 @@
 //!   cargo bench -p sixg-ntn --bench ntn_capacity
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use sixg_common::types::Position3D;
 use sixg_common::types::{Distance, PowerDb, UeId};
 use sixg_ntn::{
     handover::{leo_propagation_delay_ms, HandoverDecision, HandoverTrigger, NtnHandoverManager},
     NtnLayer, NtnNode,
 };
-use sixg_common::types::Position3D;
 
 /// Benchmark handover evaluation across altitude tiers (LEO / HAPS / GEO).
 ///
@@ -34,12 +34,16 @@ fn bench_ntn_handover_latency(c: &mut Criterion) {
         let delay_ms = leo_propagation_delay_ms(Distance::from_m(alt_m));
         let triggers = vec![HandoverTrigger::PropagationDelayExceeded { delay_ms }];
 
-        group.bench_with_input(BenchmarkId::new("altitude", label), &triggers, |b, trigs| {
-            b.iter(|| {
-                let decision = mgr.evaluate(black_box(UeId(1)), black_box(trigs));
-                black_box(decision)
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("altitude", label),
+            &triggers,
+            |b, trigs| {
+                b.iter(|| {
+                    let decision = mgr.evaluate(black_box(UeId(1)), black_box(trigs));
+                    black_box(decision)
+                })
+            },
+        );
     }
     group.finish();
 }
