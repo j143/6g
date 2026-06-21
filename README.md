@@ -158,3 +158,22 @@ cargo run --example exp_002_phy_baseline_comparison
 cargo test --workspace
 ```
 
+## Results
+
+### ISAC Pareto
+
+![ISAC pareto](./isac_pareto.png)
+
+
+### mac baseline
+
+![mac baseline](./mac_baseline.png)
+
+
+### phy baseline
+
+![phy baseline](./phy_baseline.png)
+
+### semantic ai
+
+![semantic_ai](./semantic_ai.png)
