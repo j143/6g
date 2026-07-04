@@ -97,7 +97,7 @@ members = [
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2026"
 license = "Apache-2.0"
 authors = ["6G Contributors"]
 repository = "https://github.com/j143/6g"

@@ -1,6 +1,6 @@
 # 6g
 
-A Rust skeleton for a 6G wireless system stack, inspired by
+A Rust based 6G wireless system stack, inspired by
 [Qualcomm's 6G System Architecture research](https://www.qualcomm.com/research/6g/system-architecture).
 
 ## Quickstart (30 seconds)
