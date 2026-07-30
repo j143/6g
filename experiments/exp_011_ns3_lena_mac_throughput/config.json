@@ -1,0 +1,21 @@
+{
+    "experiment": "exp_011_ns3_lena_mac_throughput",
+    "description": "ns-3 5G-LENA MAC scheduler throughput cross-check: MCS SE vs ns-3 reference",
+    "scheduler_policies": ["RoundRobin", "ProportionalFair"],
+    "prb_count": 50,
+    "prb_bandwidth_hz": 360000,
+    "snr_range_db": [0, 5, 10, 20, 30],
+    "mcs_table": "3GPP_TS_38_214_Table_5.1.3.1-2",
+    "tolerances": {
+        "level_2_se_pct": 15.0,
+        "level_3_tput_ratio_pct": 5.0
+    },
+    "simulator": {
+        "name": "ns-3 5G-LENA (CTTC NR module)",
+        "url": "https://gitlab.com/cttc-lena/nr",
+        "version": "v2.3",
+        "licence": "GPL-2.0",
+        "reference_efficiency": 0.90,
+        "reference_paper": "Patriciello et al., SoftwareX 2019"
+    }
+}

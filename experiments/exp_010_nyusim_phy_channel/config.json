@@ -1,0 +1,23 @@
+{
+    "experiment": "exp_010_nyusim_phy_channel",
+    "description": "NYUSIM CI path loss model comparison at 28/73/140 GHz sub-THz frequencies",
+    "frequencies_hz": [28e9, 73e9, 140e9],
+    "distance_range_m": [10, 30, 100, 300, 1000],
+    "channel_model": "close_in_LOS",
+    "ple": 2.0,
+    "references": {
+        "28ghz": "Rappaport et al., IEEE Access 2013; NIST TN 2069",
+        "73ghz": "MacCartney et al., IEEE ICC 2015",
+        "140ghz": "Xing & Rappaport, IEEE Trans. Ant. Prop. 2021"
+    },
+    "tolerances": {
+        "level_1_fspl_pct": 1.0,
+        "level_2_fspl_pct": 1.0
+    },
+    "simulator": {
+        "name": "NYUSIM",
+        "url": "https://wireless.engineering.nyu.edu/nyusim/",
+        "version": "v3.0",
+        "licence": "free-academic"
+    }
+}
