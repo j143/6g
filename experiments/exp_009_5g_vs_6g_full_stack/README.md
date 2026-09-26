@@ -25,18 +25,18 @@ The experiment runs **seven back-to-back sub-experiments**, each pairing a
 | 6 | No sensing (comms only) | DFRC + SDF subscription | CRB range std-dev (m), event delivery |
 | 7 | Raw IP bytes at UPF | Semantic PDU session | Compression ratio + task success rate |
 
-Each sub-experiment also probes a specific architectural flaw discovered during
-the cross-layer integration:
+Each sub-experiment also verifies closure of the seven architectural flaws
+discovered during the original cross-layer integration:
 
-| Flaw | Module | Impact |
+| Flaw | Module | Remediation status |
 |------|--------|--------|
-| F-1 | `6g-phy` → `6g-mac` | PHY RIS/OTFS gains are not fedback into MAC `UeChannelState` |
-| F-2 | `6g-phy/waveform` | `Waveform::ber_awgn()` dispatches identically for OTFS and CP-OFDM |
-| F-3 | `6g-mac/scheduler` | `QBandit` Q-table is fixed at 64 UEs; rewards for UE ≥ 64 are silently dropped |
-| F-4 | `6g-ntn` | `NtnNode::leo_satellite()` hardcodes `propagation_delay_ms = 1.8` regardless of actual altitude |
-| F-5 | `6g-core/upf` | `forward_semantic_uplink()` applies the codec with no check that the session type is `Semantic` |
-| F-6 | `6g-core/sdf` | SDF has no event buffer; late subscribers miss all prior detection events |
-| F-7 | `6g-core/upf` | `forward_unknown_flow()` returns `TriggerEstablishment` but the first packet payload is silently dropped (no buffer) |
+| F-1 | `6g-phy` → `6g-mac` | PHY-effective SNR is now passed into `UeChannelState` for scheduling decisions |
+| F-2 | `6g-phy/waveform` | `Waveform::ber_awgn()` now distinguishes OTFS from OFDM |
+| F-3 | `6g-mac/scheduler` | `QBandit` Q-table now expands beyond 64 UEs |
+| F-4 | `6g-ntn` | `NtnNode::leo_satellite()` now computes delay from altitude |
+| F-5 | `6g-core/upf` | Semantic encoding now runs only for semantic sessions |
+| F-6 | `6g-core/sdf` | SDF now replays retained matching events to late subscribers |
+| F-7 | `6g-core/upf` | Unknown-flow first packet is now buffered for lazy establishment |
 
 ## Results
 
@@ -53,7 +53,7 @@ the cross-layer integration:
 | Task success @ 15.6× compression | — | ≥ 90 % (semantic vs ≈ 0 % JPEG) | +90 pp |
 | Architecture flaws surfaced | 0 documented | **7 identified** | test-bed value |
 
-## Architectural Flaw Details
+## F-1…F-7 Remediation Checks
 
 ### F-1: PHY→MAC Cross-Layer Decoupling
 `RisChannel::snr_opt_ris()` computes a higher SNR that the MAC scheduler

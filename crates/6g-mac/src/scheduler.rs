@@ -193,8 +193,8 @@ impl QBandit {
             .iter()
             .enumerate()
             .max_by(|(i, a), (j, b)| {
-                let qa = self.q_value(*i, a.snr);
-                let qb = self.q_value(*j, b.snr);
+                let qa = self.q_value(*i, a.scheduler_snr());
+                let qb = self.q_value(*j, b.scheduler_snr());
                 qa.partial_cmp(&qb).unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(idx, _)| idx)
@@ -572,6 +572,22 @@ mod tests {
             assignments[0].ue,
             UeId(1),
             "PHY-enhanced effective SNR must influence PF ordering"
+        );
+    }
+
+    #[test]
+    fn ai_native_uses_phy_effective_snr_bucket() {
+        let mut sched = Scheduler::with_policy(SchedulingPolicy::AiNative);
+        let mut ue0 = UeChannelState::new(UeId(1), SnrLinear::new(1.0));
+        ue0.apply_phy_gain_db(PowerDb::new(20.0));
+        let ue1 = UeChannelState::new(UeId(2), SnrLinear::new(10.0));
+        let states = vec![ue0.clone(), ue1.clone()];
+        sched.observe_reward(0, ue0.phy_effective_snr.unwrap(), 10e9);
+
+        let selected = sched.q_bandit.as_ref().unwrap().select(&states, 65_535); // deterministic no-explore branch
+        assert_eq!(
+            selected, 0,
+            "AI-native selector must use PHY-effective SNR when available"
         );
     }
 

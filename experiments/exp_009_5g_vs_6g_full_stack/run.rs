@@ -1,10 +1,8 @@
 //! Experiment 009 — 5G vs 6G Full-Stack Cross-Layer Comparison
 //!
 //! Runs seven back-to-back sub-experiments, each pairing a 5G-equivalent
-//! simulation against the full 6G stack.  After each sub-experiment the code
-//! explicitly exercises the matching architectural flaw so that both the
-//! capability gain and the current implementation gap are observable in a
-//! single run.
+//! simulation against the full 6G stack. After each sub-experiment the code
+//! verifies the corresponding remediation from the F-1…F-7 closure plan.
 //!
 //! Sub-experiments:
 //!   1  PHY waveform      — OFDM vs OTFS under high mobility (250 km/h)
@@ -15,7 +13,7 @@
 //!   6  ISAC + SDF        — DFRC sensing + core subscription delivery
 //!   7  Semantic session  — raw bytes vs goal-oriented compression
 //!
-//! Architecture flaws surfaced: F-1 … F-7 (see README.md for details).
+//! Remediation checkpoints covered: F-1 … F-7 (see README.md).
 //!
 //! Run with:
 //!   cargo run --example exp_009_5g_vs_6g_full_stack
@@ -121,11 +119,6 @@ fn section(title: &str) {
     println!("{}", "═".repeat(70));
 }
 
-/// Print a flaw notice.
-fn flaw(id: &str, summary: &str) {
-    println!("\n  ⚠  FLAW {id}: {summary}");
-}
-
 /// Compute normalised Doppler shift ε = f_d / Δf (dimensionless).
 ///
 /// All arguments are internal computation values (raw `f64`) because this is a
@@ -196,33 +189,18 @@ fn part1_waveform(cfg: &PhyCfg) {
         ber_ofdm_doppler_at_8db, ber_otfs_at_8db, ber_ratio
     );
 
-    // ── FLAW F-1: PHY→MAC decoupling ──────────────────────────────────────
-    flaw(
-        "F-1",
-        "PHY->MAC cross-layer decoupling: improved BER/SNR is never fed back to MAC",
-    );
-    println!("       The MAC scheduler's UeChannelState.snr is set once at UE attach.");
-    println!("       After OTFS selection or RIS deployment, phy_snr_improvement MUST");
-    println!("       be applied to UeChannelState.snr -- but there is no API for this.");
-    println!("       The AI scheduler will continue making decisions on stale SNR.");
-
-    // ── FLAW F-2: ber_awgn identical for all waveforms ────────────────────
-    flaw(
-        "F-2",
-        "Waveform::ber_awgn() dispatches identically for OTFS and CP-OFDM",
-    );
+    // ── F-2 remediation: ber_awgn dispatch differentiates OTFS and OFDM ────
     let ber_ofdm_awgn = ofdm.ber_awgn(SnrDb(8.0));
     let ber_otfs_awgn = otfs.ber_awgn(SnrDb(8.0));
     println!(
-        "       ofdm.ber_awgn(8 dB) = {:.6e}  otfs.ber_awgn(8 dB) = {:.6e}",
+        "\n  F-2 check: ofdm.ber_awgn(8 dB) = {:.6e}  otfs.ber_awgn(8 dB) = {:.6e}",
         ber_ofdm_awgn, ber_otfs_awgn
     );
     assert!(
-        (ber_ofdm_awgn - ber_otfs_awgn).abs() < 1e-15,
-        "F-2 should show identity"
+        ber_otfs_awgn < ber_ofdm_awgn,
+        "F-2 fix: OTFS ber_awgn must be lower than OFDM ber_awgn"
     );
-    println!("       Values are IDENTICAL -- an orchestrator polling ber_awgn()");
-    println!("       uniformly cannot distinguish the two waveforms for link adaptation.");
+    println!("  F-2 fixed: OTFS and OFDM AWGN BER are now distinguishable ✓");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -281,14 +259,9 @@ fn part2_ris(cfg: &PhyCfg, ris_cfg: &RisCfg) {
     );
     println!("  RIS SNR gain > 10 dB: PASSED ✓");
 
-    // ── FLAW F-1 (continued in context of RIS) ────────────────────────────
-    flaw(
-        "F-1 (RIS context)",
-        "RIS SNR gain has no path into MAC UeChannelState -- scheduler is blind to it",
+    println!(
+        "  F-1 input for MAC: baseline SNR = {snr_no_db:.1} dB, PHY-effective SNR = {snr_opt_db:.1} dB"
     );
-    println!("       RisChannel::snr_opt_ris() returned SNR = {snr_opt_db:.1} dB, but");
-    println!("       there is no API to propagate this into UeChannelState::snr for");
-    println!("       the MAC scheduler.  The stack has no cross-layer signal path.");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -309,9 +282,23 @@ fn part3_mac(cfg: &Config) {
             })
             .collect()
     };
+    let make_states_with_phy = |n: usize| -> Vec<UeChannelState> {
+        (0..n)
+            .map(|i| {
+                let baseline_db = if i % 2 == 0 { 2.0f64 } else { 20.0f64 };
+                let baseline = SnrLinear::new(10f64.powf(baseline_db / 10.0));
+                if i % 2 == 0 {
+                    let phy_effective = SnrLinear::new(10f64.powf((baseline_db + 12.0) / 10.0));
+                    UeChannelState::from_phy(UeId(1001 + i as u64), baseline, phy_effective)
+                } else {
+                    UeChannelState::new(UeId(1001 + i as u64), baseline)
+                }
+            })
+            .collect()
+    };
 
     // ── Round Robin ────────────────────────────────────────────────────────
-    let states = make_states(cfg.ues);
+    let states = make_states_with_phy(cfg.ues);
     let mut rr_sched = Scheduler::with_policy(SchedulingPolicy::RoundRobin);
     let mut rr_prbs = vec![0usize; cfg.ues];
 
@@ -334,13 +321,13 @@ fn part3_mac(cfg: &Config) {
 
     for _t in 0..cfg.n_tti {
         let assignments = ai_sched.schedule_with_csi(&states, cfg.total_rbs);
-        for (slot, a) in assignments.iter().enumerate() {
+        for a in &assignments {
             if let Some(idx) = states.iter().position(|s| s.ue == a.ue) {
                 ai_prbs[idx] += a.rb_count;
-                // Feed observed reward: high-SNR UEs get 5 Gbps, low-SNR get 0.5 Gbps
-                let snr_db = if idx % 2 == 0 { 2.0f64 } else { 20.0f64 };
-                let throughput = if snr_db > 10.0 { 5e9 } else { 0.5e9 };
-                ai_sched.observe_reward(slot, states[idx].snr, throughput);
+                // Feed observed reward: PHY-enhanced UEs get higher throughput.
+                let throughput = if idx % 2 == 0 { 5e9 } else { 0.5e9 };
+                let reward_snr = states[idx].phy_effective_snr.unwrap_or(states[idx].snr);
+                ai_sched.observe_reward(idx, reward_snr, throughput);
             }
         }
     }
@@ -388,23 +375,14 @@ fn part3_mac(cfg: &Config) {
         (1.0 - ai_high_snr_share) * 100.0
     );
 
-    // ── FLAW F-3: Q-table capacity overflow ───────────────────────────────
-    flaw(
-        "F-3",
-        "AI Scheduler QBandit Q-table is fixed at 64 UEs; silent drop for ue_idx ≥ 64",
-    );
-
-    // Demonstrate: with the default AI scheduler (64-UE table), calling
-    // observe_reward for ue_idx = 65 silently discards the reward.
-    // We show this by creating 70 UEs and noting that UEs 64–69 never receive
-    // Q-value updates — the scheduler degrades to random for those UEs.
+    // ── F-3 remediation: Q-table expands for dense UE index space ──────────
     let overflow_n = 70usize;
     let mut overflow_sched = Scheduler::with_policy(SchedulingPolicy::AiNative);
     let overflow_states: Vec<UeChannelState> = (0..overflow_n)
         .map(|i| UeChannelState::new(UeId(2000 + i as u64), SnrLinear::new(100.0)))
         .collect();
 
-    // Drive 20 TTIs.  For UE indices 64-69 the reward is dropped silently.
+    // Drive 20 TTIs and reward UE[65] heavily.
     let mut overflow_prbs = vec![0usize; overflow_n];
     for _ in 0..20 {
         let assignments = overflow_sched.schedule_with_csi(&overflow_states, 70);
@@ -418,20 +396,16 @@ fn part3_mac(cfg: &Config) {
             }
         }
     }
-    // UE 65's reward updates are silently dropped — verify indirectly:
-    // (We cannot directly inspect QBandit.q_table from outside the crate,
-    // so we note the architectural flaw and document the guard in QBandit::update.)
+    println!("\n  F-3 check: created {overflow_n} UEs and rewarded UE[65] heavily.");
     println!(
-        "       Created {n} UEs with AI scheduler (table capacity = 64).",
-        n = overflow_n
-    );
-    println!("       Rewards for UE indices 64-69 are silently dropped by");
-    println!("       `if ue_idx >= self.q_table.len() {{ return; }}`");
-    println!("       in QBandit::update -- scheduler never learns for those UEs.");
-    println!(
-        "       PRBs assigned to UE[65] over 20 TTIs: {} (random, no learning)",
+        "  PRBs assigned to UE[65] over 20 TTIs: {}",
         overflow_prbs[65]
     );
+    assert!(
+        overflow_prbs[65] > 20,
+        "F-3 fix: UE[65] should receive boosted allocation after learning"
+    );
+    println!("  F-3 fixed: QBandit learns for UE indices beyond 64 ✓");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -503,11 +477,7 @@ fn part4_core(cfg: &Config) {
         core.amf.registered_ue_count()
     );
 
-    // ── FLAW F-7: forward_unknown_flow drops first packet ─────────────────
-    flaw(
-        "F-7",
-        "UPF forward_unknown_flow() returns TriggerEstablishment but silently drops payload",
-    );
+    // ── F-7 remediation: unknown-flow payload is buffered ─────────────────
     let unregistered_ue = UeId(9999);
     let test_payload = b"first 6G packet - should be buffered, not dropped";
     let action = core.upf.forward_unknown_flow(unregistered_ue, test_payload);
@@ -517,28 +487,19 @@ fn part4_core(cfg: &Config) {
         FlowAction::TriggerEstablishment(unregistered_ue),
         "Expected TriggerEstablishment for unknown UE"
     );
-    let bytes_for_unk = core
-        .upf
-        .session_stats(255)
-        .map(|s| s.bytes_uplink)
-        .unwrap_or(0);
-    println!("       UPF returned TriggerEstablishment for UE {unregistered_ue:?}.");
+    println!("\n  F-7 check: UPF returned TriggerEstablishment for UE {unregistered_ue:?}.");
     println!(
-        "       Bytes forwarded = {bytes_for_unk} -- payload ({} bytes) was DROPPED.",
-        test_payload.len()
+        "  Buffered payload count for UE = {}",
+        core.upf.buffered_uplink_count(unregistered_ue)
     );
-    println!("       Real 6G UPF-first architecture requires buffering before signalling");
-    println!("       the SMF; this buffer does not exist.");
     assert_eq!(
-        bytes_for_unk, 0,
-        "No bytes should have been counted for unknown UE — they are silently lost"
+        core.upf.buffered_uplink_count(unregistered_ue),
+        1,
+        "F-7 fix: first unknown packet must be buffered"
     );
+    println!("  F-7 fixed: first packet is retained for lazy establishment ✓");
 
-    // ── FLAW F-5: forward_semantic_uplink ignores session type ─────────────
-    flaw(
-        "F-5",
-        "Upf::forward_semantic_uplink() applies codec with no check on PduSessionType",
-    );
+    // ── F-5 remediation: semantic encoding gated by session type ───────────
     // Register an IP session (not semantic) and route it through the semantic UPF path
     let ip_ue = UeId(core_cfg.ue_id_base); // was registered as IP session above
     let first_ip_session = core
@@ -552,19 +513,16 @@ fn part4_core(cfg: &Config) {
         .upf
         .forward_semantic_uplink(first_ip_session, raw_ip_payload);
     println!(
-        "       Routed raw IP payload ({} bytes) through forward_semantic_uplink.",
+        "\n  F-5 check: routed raw IP payload ({} bytes) through forward_semantic_uplink.",
         raw_ip_payload.len()
     );
-    println!(
-        "       Got {} bytes back -- codec ran unconditionally on an IP session!",
-        encoded.len()
-    );
-    println!("       PduSessionType was never consulted.");
-    assert_ne!(
+    println!("  Got {} bytes back for IP session.", encoded.len());
+    assert_eq!(
         encoded.len(),
         raw_ip_payload.len(),
-        "Semantic codec must have transformed the payload"
+        "F-5 fix: IP sessions must bypass semantic encoding"
     );
+    println!("  F-5 fixed: semantic codec applies only to semantic sessions ✓");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -614,30 +572,22 @@ fn part5_ntn(ntn_cfg: &NtnCfg) {
     );
     println!("\n  LEO ≈ 1.83 ms: PASSED ✓    GEO > 100 ms: PASSED ✓");
 
-    // ── FLAW F-4: NtnNode::leo_satellite hardcodes propagation delay ───────
-    flaw(
-        "F-4",
-        "NtnNode::leo_satellite() hardcodes propagation_delay_ms = 1.8 for every altitude",
-    );
+    // ── F-4 remediation: constructor delay tracks altitude ──────────────────
     use sixg_common::types::Position3D;
 
-    // Create a "HAPS" node (20 km) using `leo_satellite` — wrong delay!
+    // Create a "HAPS" altitude node using `leo_satellite` and verify delay.
     let haps_pos = Position3D::new(0.0, 0.0, ntn_cfg.haps_altitude_m);
-    let haps_wrong = NtnNode::leo_satellite(99, haps_pos);
+    let haps_node = NtnNode::leo_satellite(99, haps_pos);
     println!(
-        "       NtnNode::leo_satellite(99, pos_z=20 km).propagation_delay_ms = {:.4} ms",
-        haps_wrong.propagation_delay_ms
+        "\n  F-4 check: NtnNode::leo_satellite(99, pos_z=20 km).propagation_delay_ms = {:.4} ms",
+        haps_node.propagation_delay_ms
     );
-    println!("       Correct value for 20 km: {haps_delay:.4} ms");
-    println!(
-        "       Error = {:.4} ms ({:.1}× wrong) — altitude is IGNORED by constructor.",
-        (haps_wrong.propagation_delay_ms - haps_delay).abs(),
-        haps_wrong.propagation_delay_ms / haps_delay
-    );
+    println!("  Correct value for 20 km: {haps_delay:.4} ms");
     assert!(
-        (haps_wrong.propagation_delay_ms - haps_delay).abs() > 1.5,
-        "F-4 flaw: HAPS delay should be far from 1.8 ms"
+        (haps_node.propagation_delay_ms - haps_delay).abs() < 0.01,
+        "F-4 fix: constructor must compute delay from altitude"
     );
+    println!("  F-4 fixed: altitude-dependent delay is correct ✓");
 
     // Handover decision
     let mgr = NtnHandoverManager::new();
@@ -743,23 +693,16 @@ fn part6_isac_sdf(isac_cfg: &IsacCfg) {
     assert_eq!(sdf.subscription(sub_idx).unwrap().delivered_count, 1);
     println!("  SDF event delivery: PASSED ✓");
 
-    // ── FLAW F-6: late subscriber misses events ────────────────────────────
-    flaw(
-        "F-6",
-        "SDF has no event replay — late subscribers miss all prior detection events",
-    );
+    // ── F-6 remediation: late subscriber receives replay ────────────────────
     // Register a second subscriber AFTER the publish
     let late_sub_idx = sdf.subscribe(cell, Distance::from_m(500.0));
     let late_delivered = sdf.subscription(late_sub_idx).unwrap().delivered_count;
-    println!(
-        "       Late subscriber (registered after publish): delivered_count = {late_delivered}"
-    );
-    println!("       The 1 prior event is not replayed -- subscriber permanently missed it.");
-    println!("       A ring-buffer or subscription-replay API is needed for reliability.");
+    println!("\n  F-6 check: late subscriber delivered_count = {late_delivered}");
     assert_eq!(
-        late_delivered, 0,
-        "F-6 confirmed: late subscriber received 0 events"
+        late_delivered, 1,
+        "F-6 fix: late subscriber should replay matching history"
     );
+    println!("  F-6 fixed: history replay delivers prior matching events ✓");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -832,33 +775,25 @@ fn part7_semantic(sem_cfg: &SemanticCfg) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn summary() {
-    section("Experiment 009 — Architecture Flaw Summary");
+    section("Experiment 009 — F-1…F-7 Remediation Summary");
     println!(
         r#"
   ┌────┬─────────────────────────────────────────┬──────────────────────────────────────────┐
-  │    │ Module                                  │ Flaw                                     │
+  │    │ Module                                  │ Remediation                              │
   ├────┼─────────────────────────────────────────┼──────────────────────────────────────────┤
-  │ F-1│ 6g-phy → 6g-mac                         │ PHY gains (RIS/OTFS) not fed into MAC    │
-  │    │                                         │ UeChannelState — scheduler is PHY-blind  │
+  │ F-1│ 6g-phy → 6g-mac                         │ PHY-effective SNR feeds scheduler state  │
   ├────┼─────────────────────────────────────────┼──────────────────────────────────────────┤
-  │ F-2│ 6g-phy/waveform                         │ Waveform::ber_awgn() is identical for    │
-  │    │                                         │ OTFS and CP-OFDM — no static distinction │
+  │ F-2│ 6g-phy/waveform                         │ OTFS and OFDM AWGN BER dispatch split    │
   ├────┼─────────────────────────────────────────┼──────────────────────────────────────────┤
-  │ F-3│ 6g-mac/scheduler (QBandit)              │ Q-table fixed at 64 UEs; ue_idx ≥ 64    │
-  │    │                                         │ rewards silently dropped — 6G AI fails   │
-  │    │                                         │ in dense deployments without crashing    │
+  │ F-3│ 6g-mac/scheduler (QBandit)              │ Q-table expands for UE indices ≥ 64      │
   ├────┼─────────────────────────────────────────┼──────────────────────────────────────────┤
-  │ F-4│ 6g-ntn (NtnNode::leo_satellite)         │ propagation_delay_ms hardcoded to 1.8   │
-  │    │                                         │ regardless of altitude — HAPS/GEO wrong  │
+  │ F-4│ 6g-ntn (NtnNode::leo_satellite)         │ Propagation delay computed from altitude │
   ├────┼─────────────────────────────────────────┼──────────────────────────────────────────┤
-  │ F-5│ 6g-core/upf (forward_semantic_uplink)   │ Semantic codec applied to ALL payloads   │
-  │    │                                         │ — PduSessionType never checked           │
+  │ F-5│ 6g-core/upf (forward_semantic_uplink)   │ Semantic routing gated by session type   │
   ├────┼─────────────────────────────────────────┼──────────────────────────────────────────┤
-  │ F-6│ 6g-core/sdf (SensingDataFunction)       │ No event replay; late subscribers miss   │
-  │    │                                         │ all prior DetectionEvents permanently     │
+  │ F-6│ 6g-core/sdf (SensingDataFunction)       │ Late subscribers replay retained events  │
   ├────┼─────────────────────────────────────────┼──────────────────────────────────────────┤
-  │ F-7│ 6g-core/upf (forward_unknown_flow)      │ First packet silently dropped when no    │
-  │    │                                         │ session exists — no buffer for UPF-first │
+  │ F-7│ 6g-core/upf (forward_unknown_flow)      │ First packet buffered until session ready│
   └────┴─────────────────────────────────────────┴──────────────────────────────────────────┘
 "#
     );
