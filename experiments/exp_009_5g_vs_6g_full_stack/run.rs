@@ -697,9 +697,7 @@ fn part6_isac_sdf(isac_cfg: &IsacCfg) {
     // Register a second subscriber AFTER the publish
     let late_sub_idx = sdf.subscribe(cell, Distance::from_m(500.0));
     let late_delivered = sdf.subscription(late_sub_idx).unwrap().delivered_count;
-    println!(
-        "\n  F-6 check: late subscriber delivered_count = {late_delivered}"
-    );
+    println!("\n  F-6 check: late subscriber delivered_count = {late_delivered}");
     assert_eq!(
         late_delivered, 1,
         "F-6 fix: late subscriber should replay matching history"
