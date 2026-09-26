@@ -9,8 +9,8 @@
     "ber_otfs_at_8db": 1.909483e-4,
     "ber_ofdm_doppler_at_8db": 4.708e-4,
     "otfs_vs_ofdm_ratio_approx": 2.46,
-    "flaw_f2_confirmed": true,
-    "note": "Waveform::ber_awgn identical for OTFS and CP-OFDM"
+    "f2_fixed": true,
+    "note": "Waveform::ber_awgn distinguishes OTFS and CP-OFDM"
   },
 
   "part2_ris": {
@@ -23,8 +23,8 @@
     "snr_no_ris_db": -80.0,
     "snr_opt_ris_db": -31.8,
     "snr_gain_db": 48.2,
-    "flaw_f1_confirmed": true,
-    "note": "RIS SNR gain not propagated to MAC UeChannelState"
+    "f1_fixed": true,
+    "note": "RIS/PHY-effective SNR is propagated to MAC UeChannelState"
   },
 
   "part3_mac": {
@@ -34,8 +34,8 @@
     "rr_jain_fairness": 1.0,
     "ai_jain_fairness_approx": 0.87,
     "ai_high_snr_share_pct_approx": 57.0,
-    "flaw_f3_confirmed": true,
-    "note": "QBandit Q-table fixed at 64 UEs; ue_idx>=64 rewards silently dropped"
+    "f3_fixed": true,
+    "note": "QBandit Q-table expands for ue_idx>=64"
   },
 
   "part4_core": {
@@ -43,10 +43,10 @@
     "rtt_6g_sbav2": 1,
     "reduction_pct": 75.0,
     "n_ues_registered": 8,
-    "flaw_f5_confirmed": true,
-    "flaw_f7_confirmed": true,
-    "note_f5": "forward_semantic_uplink applies codec regardless of PduSessionType",
-    "note_f7": "forward_unknown_flow drops first packet (no buffer)"
+    "f5_fixed": true,
+    "f7_fixed": true,
+    "note_f5": "forward_semantic_uplink checks PduSessionType before semantic encoding",
+    "note_f7": "forward_unknown_flow buffers first packet for lazy establishment"
   },
 
   "part5_ntn": {
@@ -54,10 +54,10 @@
     "leo_delay_ms": 1.835,
     "haps_altitude_m": 20000,
     "haps_delay_ms_correct": 0.067,
-    "haps_delay_ms_hardcoded": 1.8,
+    "haps_delay_ms_constructor": 0.067,
     "geo_delay_ms": 119.4,
-    "flaw_f4_confirmed": true,
-    "note": "NtnNode::leo_satellite hardcodes 1.8 ms for every altitude"
+    "f4_fixed": true,
+    "note": "NtnNode::leo_satellite computes propagation delay from altitude"
   },
 
   "part6_isac_sdf": {
@@ -67,9 +67,9 @@
     "capacity_at_alpha_0_6_gbps": 3.17,
     "pd_at_pfa_1e4": 0.9128,
     "events_delivered_to_prompt_subscriber": 1,
-    "events_delivered_to_late_subscriber": 0,
-    "flaw_f6_confirmed": true,
-    "note": "SDF has no event replay for late subscribers"
+    "events_delivered_to_late_subscriber": 1,
+    "f6_fixed": true,
+    "note": "SDF replays retained matching events to late subscribers"
   },
 
   "part7_semantic": {
@@ -90,13 +90,13 @@
     "all_checks_passed": true
   },
 
-  "flaws_identified": [
-    "F-1: PHY->MAC decoupling (RIS/OTFS gains not in MAC UeChannelState)",
-    "F-2: Waveform::ber_awgn identical for OTFS and CP-OFDM",
-    "F-3: QBandit Q-table fixed at 64 UEs; silent drop for ue_idx>=64",
-    "F-4: NtnNode::leo_satellite hardcodes propagation_delay_ms=1.8",
-    "F-5: forward_semantic_uplink ignores PduSessionType",
-    "F-6: SDF no event replay for late subscribers",
-    "F-7: forward_unknown_flow drops first packet"
+  "remediations_verified": [
+    "F-1: PHY->MAC cross-layer SNR path is active via UeChannelState::from_phy/phy_effective_snr",
+    "F-2: Waveform::ber_awgn distinguishes OTFS and CP-OFDM",
+    "F-3: QBandit Q-table expands beyond 64 UEs",
+    "F-4: NtnNode::leo_satellite computes propagation delay from altitude",
+    "F-5: forward_semantic_uplink gates semantic codec by PduSessionType",
+    "F-6: SDF late subscribers replay retained matching events",
+    "F-7: forward_unknown_flow buffers first packet until session establishment"
   ]
 }
