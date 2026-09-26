@@ -584,11 +584,7 @@ mod tests {
         let states = vec![ue0.clone(), ue1.clone()];
         sched.observe_reward(0, ue0.phy_effective_snr.unwrap(), 10e9);
 
-        let selected = sched
-            .q_bandit
-            .as_ref()
-            .unwrap()
-            .select(&states, 65_535); // deterministic no-explore branch
+        let selected = sched.q_bandit.as_ref().unwrap().select(&states, 65_535); // deterministic no-explore branch
         assert_eq!(
             selected, 0,
             "AI-native selector must use PHY-effective SNR when available"
