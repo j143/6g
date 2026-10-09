@@ -147,7 +147,9 @@ impl StatusPdu {
         }
         let ack_sn = ((bytes[1] as u16) << 8) | (bytes[2] as u16);
         let nack_sns = bytes[3..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| ((c[0] as u16) << 8) | (c[1] as u16))
             .collect();
         Some(StatusPdu { ack_sn, nack_sns })
@@ -298,16 +300,16 @@ impl RlcEntity {
             let mut chain_sns: Vec<u16> = vec![start_sn];
             let mut cur_sn = start_sn.wrapping_add(1);
             loop {
-                if let Some(pos) = self.rx_segments.iter().position(|(sn, _, _)| *sn == cur_sn) {
-                    let si = self.rx_segments[pos].2;
-                    chain_sns.push(cur_sn);
-                    if si == SegmentInfo::Last {
-                        break;
-                    }
-                    cur_sn = cur_sn.wrapping_add(1);
-                } else {
-                    return None; // chain incomplete
+                let pos = self
+                    .rx_segments
+                    .iter()
+                    .position(|(sn, _, _)| *sn == cur_sn)?;
+                let si = self.rx_segments[pos].2;
+                chain_sns.push(cur_sn);
+                if si == SegmentInfo::Last {
+                    break;
                 }
+                cur_sn = cur_sn.wrapping_add(1);
             }
             // Extract and reassemble.
             let mut sdu = Vec::new();
