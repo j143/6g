@@ -6,9 +6,9 @@
 //! Run with:
 //!   cargo bench -p sixg-core --bench core_capacity
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use sixg_common::types::UeId;
-use sixg_core::{nssf::SliceType, smf::PduSessionType, CoreNetwork};
+use sixg_core::{CoreNetwork, nssf::SliceType, smf::PduSessionType};
 
 /// Benchmark UE registration burst throughput.
 ///

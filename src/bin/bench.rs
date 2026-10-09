@@ -293,11 +293,7 @@ fn cmd_run(args: &[String], json_output: bool) -> i32 {
         println!("]");
     }
 
-    if all_ok {
-        0
-    } else {
-        1
-    }
+    if all_ok { 0 } else { 1 }
 }
 
 fn cmd_validate(with_baselines: bool, json_output: bool) -> i32 {
@@ -355,11 +351,7 @@ fn cmd_validate(with_baselines: bool, json_output: bool) -> i32 {
         }
     }
 
-    if failed.is_empty() {
-        0
-    } else {
-        1
-    }
+    if failed.is_empty() { 0 } else { 1 }
 }
 
 fn cmd_info(json_output: bool) {

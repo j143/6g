@@ -446,8 +446,8 @@ fn part4_core(cfg: &Config) {
             ip_session_count += 1;
             PduSessionType::Ip
         } else {
-            use sixg_semantic::codec::TaskSuccessRate;
             use sixg_semantic::SemanticTask;
+            use sixg_semantic::codec::TaskSuccessRate;
             semantic_session_count += 1;
             PduSessionType::Semantic(sixg_core::smf::GoalSpec {
                 task: SemanticTask::TextUnderstanding,

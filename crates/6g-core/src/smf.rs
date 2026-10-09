@@ -9,8 +9,8 @@
 use std::net::Ipv4Addr;
 
 use sixg_common::types::UeId;
-use sixg_semantic::codec::{BandwidthReduction, TaskSuccessRate};
 use sixg_semantic::SemanticTask;
+use sixg_semantic::codec::{BandwidthReduction, TaskSuccessRate};
 
 /// Goal specification for a semantic PDU session.
 ///

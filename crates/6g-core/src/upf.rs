@@ -23,8 +23,8 @@
 use std::collections::HashMap;
 
 use sixg_common::types::{Payload, UeId};
-use sixg_semantic::codec::TextSemanticCodec;
 use sixg_semantic::SemanticCodec;
+use sixg_semantic::codec::TextSemanticCodec;
 
 use crate::smf::PduSessionType;
 
@@ -198,7 +198,11 @@ impl Upf {
     /// 2021 White Paper.
     pub fn forward_unknown_flow(&mut self, ue: UeId, payload: &[u8]) -> FlowAction {
         // Find the first session registered for this UE.
-        if let Some((&session_id, _)) = self.session_ue_map.iter().find(|(_, &u)| u == ue) {
+        if let Some(session_id) = self
+            .session_ue_map
+            .iter()
+            .find_map(|(session_id, mapped_ue)| (*mapped_ue == ue).then_some(*session_id))
+        {
             self.forward_uplink_for_session(session_id, payload);
             FlowAction::Forwarded(session_id)
         } else {
@@ -248,8 +252,8 @@ mod tests {
     use super::*;
     use crate::smf::GoalSpec;
     use sixg_common::types::UeId;
-    use sixg_semantic::codec::{BandwidthReduction, TaskSuccessRate};
     use sixg_semantic::SemanticTask;
+    use sixg_semantic::codec::{BandwidthReduction, TaskSuccessRate};
 
     #[test]
     fn forward_uplink_accumulates_bytes() {

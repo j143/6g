@@ -145,12 +145,12 @@ impl DigitalTwin {
         let changed_slices = new
             .slice_load_pct
             .iter()
-            .filter(|(&id, &new_load)| {
+            .filter(|(id, new_load)| {
                 old.slice_load_pct
-                    .get(&id)
-                    .is_none_or(|&old_load| (new_load - old_load).abs() > 1.0)
+                    .get(id)
+                    .is_none_or(|old_load| (*new_load - *old_load).abs() > 1.0)
             })
-            .map(|(&id, _)| id)
+            .map(|(id, _)| *id)
             .collect();
 
         SnapshotDiff {
