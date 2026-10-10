@@ -189,7 +189,7 @@ fn main() {
 /// return Jain fairness index of the resulting PRB allocation totals.
 fn simulate_rr_fairness(n_ue: usize, n_tti: u64, total_rbs: usize) -> f64 {
     use sixg_common::types::{SnrLinear, UeId};
-    use sixg_mac::scheduler::{jain_fairness, Scheduler, SchedulingPolicy, UeChannelState};
+    use sixg_mac::scheduler::{Scheduler, SchedulingPolicy, UeChannelState, jain_fairness};
 
     let mut sched = Scheduler::with_policy(SchedulingPolicy::RoundRobin);
     let ue_states: Vec<UeChannelState> = (0..n_ue)

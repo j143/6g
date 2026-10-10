@@ -7,12 +7,12 @@
 //! Run with:
 //!   cargo bench -p sixg-ntn --bench ntn_capacity
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use sixg_common::types::Position3D;
 use sixg_common::types::{Distance, PowerDb, UeId};
 use sixg_ntn::{
-    handover::{leo_propagation_delay_ms, HandoverDecision, HandoverTrigger, NtnHandoverManager},
     NtnLayer, NtnNode,
+    handover::{HandoverDecision, HandoverTrigger, NtnHandoverManager, leo_propagation_delay_ms},
 };
 
 /// Benchmark handover evaluation across altitude tiers (LEO / HAPS / GEO).

@@ -427,7 +427,7 @@ mod tests {
         let mut tx = make_entity(12, true);
         let mut rx = make_entity(12, true);
         let data: Payload = vec![0u8; 40]; // simulate IP/UDP packet
-                                           // First packet → IR
+        // First packet → IR
         let pdu0 = tx.process_tx(data.clone());
         assert_eq!(pdu0[0], IR_MARKER, "first ROHC packet must be IR");
         let r0 = rx.process_rx(pdu0).expect("IR round-trip");

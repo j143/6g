@@ -25,7 +25,7 @@ use sixg_common::{
     baseline::{BaselineDataset, BaselineSource},
     types::{BearerId, NodeId, UeId},
 };
-use sixg_core::{nssf::SliceType, smf::PduSessionType, CoreNetwork, GnbNode};
+use sixg_core::{CoreNetwork, GnbNode, nssf::SliceType, smf::PduSessionType};
 use sixg_rlc::{RlcEntity, RlcMode};
 use std::process::Command;
 
@@ -214,7 +214,7 @@ fn build_ping_payload(ue_ip: [u8; 4], seq: u16, total_bytes: usize) -> Vec<u8> {
     buf[17] = 8;
     buf[18] = 8;
     buf[19] = 8; // destination = 8.8.8.8 (external DN)
-                 // ICMP echo request header (8 bytes starting at offset 20)
+    // ICMP echo request header (8 bytes starting at offset 20)
     if total_bytes > 20 {
         buf[20] = 8; // type = Echo Request
         buf[21] = 0; // code = 0

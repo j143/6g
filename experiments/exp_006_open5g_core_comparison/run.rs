@@ -35,7 +35,7 @@ use sixg_common::{
     baseline::{BaselineDataset, BaselineSource},
     types::{NodeId, UeId},
 };
-use sixg_core::{nssf::SliceType, smf::PduSessionType, CoreNetwork, GnbNode};
+use sixg_core::{CoreNetwork, GnbNode, nssf::SliceType, smf::PduSessionType};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command};

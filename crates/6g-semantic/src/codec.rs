@@ -37,7 +37,7 @@ use sixg_common::{
 use sixg_ai::{
     inference::InferenceRequest,
     model::AiModel,
-    onnx_model::{cosine_similarity, OnnxModel, OnnxModelValidation, EMBEDDING_DIM, FEATURE_DIM},
+    onnx_model::{EMBEDDING_DIM, FEATURE_DIM, OnnxModel, OnnxModelValidation, cosine_similarity},
 };
 
 use crate::{SemanticCodec, SemanticPacket, SemanticTask};

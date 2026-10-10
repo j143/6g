@@ -25,20 +25,20 @@ use sixg_common::validation::{Validate, ValidationCheck, ValidationResult};
 
 use sixg_phy::ris::{RisChannel, RisConfig};
 use sixg_phy::spectrum::path_loss_db;
-use sixg_phy::waveform::{bpsk_ber_awgn, ofdm_ber_high_doppler, Waveform};
+use sixg_phy::waveform::{Waveform, bpsk_ber_awgn, ofdm_ber_high_doppler};
 
-use sixg_mac::scheduler::{jain_fairness, Scheduler, SchedulingPolicy, UeChannelState};
+use sixg_mac::scheduler::{Scheduler, SchedulingPolicy, UeChannelState, jain_fairness};
 
-use sixg_ntn::handover::{
-    leo_propagation_delay_ms, HandoverDecision, HandoverTrigger, NtnHandoverManager, LEO_ALTITUDE_M,
-};
 use sixg_ntn::NtnNode;
+use sixg_ntn::handover::{
+    HandoverDecision, HandoverTrigger, LEO_ALTITUDE_M, NtnHandoverManager, leo_propagation_delay_ms,
+};
 
 use sixg_isac::detection::pd_from_pfa;
 use sixg_isac::dfrc::DfrcConfig;
 
-use sixg_semantic::codec::{BandwidthReduction, GoalOrientedMetrics, TextSemanticCodec};
 use sixg_semantic::SemanticCodec;
+use sixg_semantic::codec::{BandwidthReduction, GoalOrientedMetrics, TextSemanticCodec};
 
 use sixg_core::nssf::SliceType;
 use sixg_core::sdf::{DetectionEvent, SensingDataFunction};

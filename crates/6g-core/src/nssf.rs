@@ -122,11 +122,11 @@ impl NetworkSliceSelector {
     pub fn release_ue(&mut self, slice_type: SliceType) -> bool {
         if let Some(slice) = self.slices.iter().find(|s| s.slice_type == slice_type) {
             let s_nssai = slice.s_nssai;
-            if let Some(count) = self.admitted.get_mut(&s_nssai) {
-                if *count > 0 {
-                    *count -= 1;
-                    return true;
-                }
+            if let Some(count) = self.admitted.get_mut(&s_nssai)
+                && *count > 0
+            {
+                *count -= 1;
+                return true;
             }
         }
         false

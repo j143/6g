@@ -62,11 +62,10 @@ impl GnbNode {
     pub fn detach(&mut self, ue: UeId) -> bool {
         if let Some(idx) =
             (0..self.rrc.ue_count()).find(|&i| self.rrc.context(i).is_some_and(|c| c.ue == ue))
+            && let Some(ctx) = self.rrc.context_mut(idx)
         {
-            if let Some(ctx) = self.rrc.context_mut(idx) {
-                ctx.release();
-                return true;
-            }
+            ctx.release();
+            return true;
         }
         false
     }

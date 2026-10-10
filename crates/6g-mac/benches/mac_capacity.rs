@@ -7,11 +7,11 @@
 //! Run with:
 //!   cargo bench -p sixg-mac --bench mac_capacity
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use sixg_common::types::{SnrLinear, UeId};
 use sixg_mac::{
     harq::ChaseCombineBuffer,
-    scheduler::{jain_fairness, Scheduler, SchedulingPolicy, UeChannelState},
+    scheduler::{Scheduler, SchedulingPolicy, UeChannelState, jain_fairness},
 };
 
 /// Benchmark the scheduler across a range of UE counts and TTI depths.

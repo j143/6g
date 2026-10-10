@@ -6,9 +6,9 @@
 //! Run with:
 //!   cargo bench -p sixg-semantic --bench semantic_capacity
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use sixg_semantic::codec::TextSemanticCodec;
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use sixg_semantic::SemanticCodec;
+use sixg_semantic::codec::TextSemanticCodec;
 
 /// Benchmark the semantic encoder at various payload sizes.
 ///

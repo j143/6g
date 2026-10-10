@@ -20,10 +20,10 @@
 
 use sixg_ai::inference::InferenceRequest;
 use sixg_ai::model::AiModel;
-use sixg_ai::onnx_model::{cosine_similarity, OnnxModel, FEATURE_DIM};
+use sixg_ai::onnx_model::{FEATURE_DIM, OnnxModel, cosine_similarity};
 use sixg_common::validation::Validate;
-use sixg_semantic::codec::{OnnxSemanticCodec, OnnxSemanticValidation, TextSemanticCodec};
 use sixg_semantic::SemanticCodec;
+use sixg_semantic::codec::{OnnxSemanticCodec, OnnxSemanticValidation, TextSemanticCodec};
 
 fn main() {
     // ─────────────────────────────────────────────────────────────────────────

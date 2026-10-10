@@ -12,7 +12,7 @@ pub mod dfrc;
 pub mod sensing;
 pub mod waveform;
 
-pub use detection::{pd_from_pfa, RangeDopplerMap};
+pub use detection::{RangeDopplerMap, pd_from_pfa};
 pub use dfrc::{DfrcConfig, DfrcValidation, ParetoPoint};
 pub use sensing::{SensingResult, SensingTask};
 pub use waveform::IsacWaveform;

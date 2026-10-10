@@ -17,11 +17,11 @@ use sixg_common::config::SystemConfig;
 
 pub use mimo::MimoConfig;
 pub use ris::{RisChannel, RisConfig};
-pub use spectrum::{path_loss_db, SpectrumManager};
+pub use spectrum::{SpectrumManager, path_loss_db};
 pub use validation::PhyValidation;
 pub use waveform::{
-    adc_sqnr_db, adc_sqnr_linear, bpsk_ber_awgn, ofdm_ber_high_doppler, phase_noise_snr_linear,
-    Waveform, WaveformImpairments,
+    Waveform, WaveformImpairments, adc_sqnr_db, adc_sqnr_linear, bpsk_ber_awgn,
+    ofdm_ber_high_doppler, phase_noise_snr_linear,
 };
 
 /// Entry point for the 6G physical layer.

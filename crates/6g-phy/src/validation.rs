@@ -24,8 +24,8 @@ use sixg_common::{
 use crate::{
     spectrum::fspl_db,
     waveform::{
-        adc_sqnr_db, bpsk_ber_awgn, ofdm_ber_high_doppler, phase_noise_snr_linear,
-        WaveformImpairments,
+        WaveformImpairments, adc_sqnr_db, bpsk_ber_awgn, ofdm_ber_high_doppler,
+        phase_noise_snr_linear,
     },
 };
 

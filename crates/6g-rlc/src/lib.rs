@@ -147,9 +147,8 @@ impl StatusPdu {
         }
         let ack_sn = ((bytes[1] as u16) << 8) | (bytes[2] as u16);
         let nack_sns = bytes[3..]
-            .as_chunks::<2>()
-            .0
-            .iter()
+            .chunks(2)
+            .filter(|chunk| chunk.len() == 2)
             .map(|c| ((c[0] as u16) << 8) | (c[1] as u16))
             .collect();
         Some(StatusPdu { ack_sn, nack_sns })

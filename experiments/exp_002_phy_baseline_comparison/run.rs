@@ -19,7 +19,7 @@ fn main() {
         validation::Validate,
     };
     use sixg_phy::{
-        bpsk_ber_awgn, ofdm_ber_high_doppler, path_loss_db, waveform::Waveform, PhyValidation,
+        PhyValidation, bpsk_ber_awgn, ofdm_ber_high_doppler, path_loss_db, waveform::Waveform,
     };
 
     // -----------------------------------------------------------------------
