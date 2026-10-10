@@ -60,9 +60,9 @@ impl GnbNode {
     /// succeeded (Connected → Idle).  The UE context is retained so that the
     /// UE can re-attach later without re-creating the RRC context.
     pub fn detach(&mut self, ue: UeId) -> bool {
-        if let Some(idx) =
-            (0..self.rrc.ue_count()).find(|&i| self.rrc.context(i).is_some_and(|c| c.ue == ue))
-            && let Some(ctx) = self.rrc.context_mut(idx)
+        if let Some(ctx) = (0..self.rrc.ue_count())
+            .find(|&i| self.rrc.context(i).is_some_and(|c| c.ue == ue))
+            .and_then(|idx| self.rrc.context_mut(idx))
         {
             ctx.release();
             return true;
