@@ -89,6 +89,12 @@ A single reference data point from an external system: `input_parameter` (x-axis
 
 ### `BaselineDataset`
 
+Loads two-column reference data with `BaselineDataset::from_csv` or
+`BaselineDataset::from_csv_str`. CSV files may contain blank lines and `#`
+provenance comments before the header. `compare_values` performs nearest-input
+matching and reports relative error against the configured percentage
+tolerance.
+
 Named collection of `BaselinePoint` values from one external system, tagged with a `BaselineSource`. Core comparison methods:
 
 - `from_csv_str(csv, source)` — parse a two-column CSV (`input_parameter,reference_value`)

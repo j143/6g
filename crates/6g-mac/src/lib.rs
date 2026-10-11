@@ -10,6 +10,9 @@ pub mod access;
 pub mod harq;
 pub mod scheduler;
 
+#[cfg(all(test, feature = "baseline-comparison"))]
+mod baseline_comparison;
+
 pub use access::AccessScheme;
 pub use harq::{HarqManager, HarqState, ProactiveHarq};
 pub use scheduler::{

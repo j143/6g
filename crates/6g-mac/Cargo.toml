@@ -11,6 +11,11 @@ sixg-ai     = { path = "../6g-ai" }
 thiserror.workspace = true
 serde.workspace = true
 
+[features]
+## Gate Level-2 comparisons against external MAC/RAN CSV baselines.
+## Run with: SIXG_BASELINES=baselines cargo test -p sixg-mac --features=baseline-comparison
+baseline-comparison = []
+
 [dev-dependencies]
 criterion.workspace = true
 

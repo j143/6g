@@ -1,4 +1,4 @@
-# srsRAN Chase Combining HARQ — transmissions needed to decode.
+# Analytical Chase Combining HARQ fixture inspired by srsRAN behavior.
 #
 # Reference: srsRAN (https://www.srsran.com), 3GPP TS 38.214 §5.1 HARQ.
 # Model: ideal MRC (Maximum Ratio Combining).  Combined SNR accumulates
@@ -6,7 +6,8 @@
 # Decode threshold: SNR_combined ≥ 2.0 linear (≈ 3 dB), matching srsRAN
 # default BLER threshold for QPSK in AWGN.
 #
-# Generated with: ./gnb -c gnb_zmq.yaml (ZMQ loopback, no RF hardware).
+# This file is not an srsRAN capture. Use a real srsRAN export for Level-2
+# validation; this deterministic fixture only checks the ideal model.
 #
 # input_parameter = initial received SNR per transmission (linear, dimensionless)
 # reference_value = number of HARQ transmissions until successful decode

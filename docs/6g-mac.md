@@ -59,6 +59,31 @@ Key types: `AccessScheme`.
 
 Compare RoundRobin vs AI Q-learning scheduler: Jain fairness index and 5th-percentile throughput at 20 UEs with heterogeneous channel conditions.
 
+### External Level-2 References
+
+The opt-in `baseline-comparison` feature runs two CSV-backed checks when
+`SIXG_BASELINES` is set:
+
+```bash
+SIXG_BASELINES=baselines cargo test -p sixg-mac --features=baseline-comparison
+```
+
+- `srsran_harq_chase_rounds.csv` compares `HarqManager` Chase Combining
+	transmissions against an analytical ideal-MRC fixture. It is not an srsRAN
+	capture; the tolerance is 0% because both sides are deterministic integers.
+- `ns3_rr_jain_fairness.csv` compares 100 TTIs of equal-SNR Round Robin
+	scheduling against an analytical equal-allocation fixture. It is not a
+	5G-LENA capture; the tolerance is 5%, matching the Level-2 policy.
+- `baselines/5glena_v5.1_ue_sweep.csv` records the real pinned 5G-LENA sweep.
+	Its regression test checks the measured throughput/degradation trend, while
+	Rust fairness remains a separate MAC-level metric.
+
+These checked-in CSVs are compact reference fixtures with provenance comments,
+not fresh simulator logs. Replace them with exports from srsRAN ZMQ or ns-3
+5G-LENA at matched operating points for an external re-validation. The tests
+therefore verify model alignment and CSV provenance today, while keeping the
+operating-point assumptions visible for future live-trace imports.
+
 ## References
 
 - O-RAN WG2 AI/ML Workflow Requirements

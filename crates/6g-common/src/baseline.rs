@@ -52,6 +52,7 @@
 
 use crate::validation::{ValidationCheck, ValidationResult};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 // ---------------------------------------------------------------------------
 // BaselineSource
@@ -112,6 +113,18 @@ pub struct BaselineDataset {
 }
 
 impl BaselineDataset {
+    /// Load a two-column CSV file into a [`BaselineDataset`].
+    ///
+    /// The file must contain `input_parameter,reference_value` columns. The
+    /// path is resolved by the caller, so external baseline directories can
+    /// remain outside the repository.
+    pub fn from_csv<P: AsRef<Path>>(path: P, source: BaselineSource) -> Result<Self, String> {
+        let csv = std::fs::read_to_string(path.as_ref()).map_err(|error| {
+            format!("cannot read baseline {}: {error}", path.as_ref().display())
+        })?;
+        Self::from_csv_str(&csv, source)
+    }
+
     /// Parse a two-column CSV string into a `BaselineDataset`.
     ///
     /// Expected format (header row required):
@@ -124,12 +137,14 @@ impl BaselineDataset {
     /// Returns an error string if the CSV is malformed.
     pub fn from_csv_str(csv: &str, source: BaselineSource) -> Result<Self, String> {
         let mut points = Vec::new();
-        let mut lines = csv.lines();
-        // Skip header row.
-        lines.next();
-        for (line_no, line) in lines.enumerate() {
+        let mut header_seen = false;
+        for (line_no, line) in csv.lines().enumerate() {
             let line = line.trim();
-            if line.is_empty() {
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if !header_seen {
+                header_seen = true;
                 continue;
             }
             let parts: Vec<&str> = line.splitn(2, ',').collect();
@@ -402,6 +417,19 @@ mod tests {
     }
 
     #[test]
+    fn from_csv_str_ignores_comments_before_header() {
+        let csv = "# source: test\n# metric: BER\ninput_parameter,reference_value\n0.0,0.5\n";
+        let source = BaselineSource {
+            system: "test",
+            metric: "BER",
+            citation: "test",
+        };
+        let ds = BaselineDataset::from_csv_str(csv, source).expect("should parse");
+        assert_eq!(ds.points.len(), 1);
+        assert!((ds.points[0].reference_value - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
     fn from_csv_str_rejects_malformed_line() {
         let csv = "input_parameter,reference_value\nno_comma_here\n";
         let source = BaselineSource {
@@ -410,6 +438,17 @@ mod tests {
             citation: "c",
         };
         assert!(BaselineDataset::from_csv_str(csv, source).is_err());
+    }
+
+    #[test]
+    fn from_csv_reports_missing_file() {
+        let source = BaselineSource {
+            system: "test",
+            metric: "metric",
+            citation: "test",
+        };
+        let result = BaselineDataset::from_csv("/path/that/does/not/exist.csv", source);
+        assert!(result.is_err());
     }
 
     #[test]

@@ -75,6 +75,36 @@ fn bench_scheduler_scale(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark the Rust Round Robin scheduler at the real 5G-LENA sweep sizes.
+///
+/// This measures Rust scheduling cost and PRB allocation only. It does not
+/// claim to reproduce 5G-LENA's PHY-dependent throughput or delay.
+fn bench_round_robin_5glena_ue_counts(c: &mut Criterion) {
+    let mut group = c.benchmark_group("round_robin_5glena_ue_counts");
+    const TOTAL_RBS: usize = 100;
+    const N_TTI: usize = 100;
+
+    for &n_ues in &[5usize, 10, 20, 50] {
+        let states: Vec<_> = (0..n_ues)
+            .map(|id| UeChannelState::new(UeId(id as u64), SnrLinear::new(1.0)))
+            .collect();
+        group.throughput(Throughput::Elements(N_TTI as u64));
+        group.bench_with_input(BenchmarkId::new("ues", n_ues), &states, |b, states| {
+            b.iter(|| {
+                let mut scheduler = Scheduler::with_policy(SchedulingPolicy::RoundRobin);
+                let mut assigned_rbs = 0usize;
+                for _ in 0..N_TTI {
+                    for assignment in scheduler.schedule_with_csi(black_box(states), TOTAL_RBS) {
+                        assigned_rbs += assignment.rb_count;
+                    }
+                }
+                black_box(assigned_rbs)
+            });
+        });
+    }
+    group.finish();
+}
+
 /// Benchmark HARQ Chase Combining across SNR values.
 ///
 /// Metric: HARQ combining rounds needed to reach the decode threshold
@@ -127,6 +157,7 @@ fn bench_jain_fairness(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_scheduler_scale,
+    bench_round_robin_5glena_ue_counts,
     bench_harq_rounds_distribution,
     bench_jain_fairness
 );

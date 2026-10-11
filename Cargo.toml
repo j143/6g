@@ -70,7 +70,7 @@ serde_json.workspace = true
 default = []
 ## Baseline tier: enable Level-2 CSV baseline comparison tests in 6g-phy.
 ## Activate with: cargo build --features=baseline-comparison
-baseline-comparison = ["sixg-phy/baseline-comparison"]
+baseline-comparison = ["sixg-phy/baseline-comparison", "sixg-mac/baseline-comparison"]
 ## ONNX tier: gate real ort-based ONNX sentence-transformer inference.
 ## Requires libonnxruntime and a model file.  See install.sh --onnx.
 onnx = ["sixg-ai/onnx", "sixg-semantic/onnx"]

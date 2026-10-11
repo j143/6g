@@ -91,9 +91,11 @@ measurement available from a real system.
 | `CoreNetwork::establish_session` ratio | open5gs SMF session allocation (TS 23.502 §4.3.2) | Inline CSV in `exp_006` |
 | `SbaV2Registry` RTT count | 5G NAS round-trip count (free5gc/open5gs) | Level 3 assertion in `exp_006` |
 
-Baseline CSV files live in a top-level `baselines/` directory (not checked in
-— see §4 for how to populate them).  Each file has exactly two columns:
-`input_parameter` and `measured_value`, with a header row.
+Small reference fixtures live in the top-level `baselines/` directory so the
+deterministic comparisons run in CI. Larger exports and raw simulator logs
+should remain outside git. Each file has two data columns,
+`input_parameter` and `reference_value`, with a header row; provenance lines
+starting with `#` are allowed before the header.
 
 ---
 
@@ -180,9 +182,18 @@ The `Validate` trait already runs Level 1 checks on every `cargo test`.
 Level 2 checks are optional (baseline files not in-repo) and should run via:
 
 ```bash
-# Only when baselines/ directory exists (e.g., in a dedicated CI job)
-SIXG_BASELINES=baselines/ cargo test --workspace --features=baseline-comparison
+# PHY and MAC Level-2 checks use the checked-in compact fixtures.
+SIXG_BASELINES=baselines/ cargo test -p sixg-phy --features=baseline-comparison
+SIXG_BASELINES=baselines/ cargo test -p sixg-mac --features=baseline-comparison
 ```
+
+The small srsRAN and ns-3 CSVs are analytical fixtures, not live captures.
+The real pinned 5G-LENA UE sweep is stored in
+`baselines/5glena_v5.1_ue_sweep.csv` and its test checks the observed load
+trend. It does not assert that Rust reproduces 5G-LENA's PHY-dependent
+throughput or delay. Real srsRAN ZMQ traces still require an external run;
+all cross-system comparisons require matched SNR definition, bandwidth, UE
+count, and HARQ combining mode.
 
 Gate this behind a Cargo feature so the standard `cargo test` path never
 fails due to missing external data.

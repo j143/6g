@@ -1,0 +1,10 @@
+# Real 5G-LENA v5.1 / ns-3.48 stock cttc-nr-demo sweep.
+# 5G-LENA commit: cedceadda17392c90587fb9400eb9b1f8c236713
+# ns-3 commit: d2add90b452d600cfb4859baed8e9ea633519447
+# RngRun=1, simTime=500ms, traffic starts at 400ms.
+# Columns: UEs per gNB, mean flow throughput (Mbps), mean flow delay (ms).
+ue_count,mean_flow_throughput_mbps,mean_flow_delay_ms
+5,43.157504,2.598439
+10,23.415808,16.850798
+20,14.202880,21.443896
+50,6.955008,28.272604
