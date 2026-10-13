@@ -60,22 +60,16 @@ sixg-ai      = { path = "crates/6g-ai" }
 sixg-ntn     = { path = "crates/6g-ntn" }
 sixg-semantic = { path = "crates/6g-semantic" }
 sixg-core    = { path = "crates/6g-core" }
+sixg-trace   = { path = "crates/6g-trace" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
 [features]
-## Core tier: zero native dependencies.  Always enabled.
 default = []
-## Baseline tier: enable Level-2 CSV baseline comparison tests in 6g-phy.
-## Activate with: cargo build --features=baseline-comparison
 baseline-comparison = ["sixg-phy/baseline-comparison", "sixg-mac/baseline-comparison"]
-## ONNX tier: gate real ort-based ONNX sentence-transformer inference.
-## Requires libonnxruntime and a model file.  See install.sh --onnx.
 onnx = ["sixg-ai/onnx", "sixg-semantic/onnx"]
-## Plotting tier: compile-time marker enabling CSV / JSON artefact output.
-## Python plots are handled separately via scripts/plot_*.py.
 plotting = []
 
 [workspace]
@@ -93,6 +87,7 @@ members = [
     "crates/6g-ntn",
     "crates/6g-semantic",
     "crates/6g-core",
+    "crates/6g-trace",
 ]
 
 [workspace.package]
