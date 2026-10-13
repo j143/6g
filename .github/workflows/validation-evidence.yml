@@ -1,0 +1,46 @@
+name: validation-evidence
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run workspace tests
+        run: cargo test --workspace --all-features
+
+      - name: Run E2E validation baseline
+        run: cargo test --release --test e2e_baseline -- --nocapture
+
+      - name: Collect validation manifest
+        run: |
+          mkdir -p validation-output
+          cat > validation-output/scenario.json <<'EOF'
+          {
+            "scenario": "e2e_baseline_pdcp_rlc_harq_phy",
+            "seed": 20261013,
+            "path": "PDCP_TX -> RLC_TX -> HARQ -> PHY -> RLC_RX -> PDCP_RX",
+            "criteria": [
+              "SYS-E2E-001",
+              "SYS-E2E-002",
+              "SYS-E2E-003",
+              "SYS-E2E-004",
+              "MODEL-HARQ-001"
+            ]
+          }
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-evidence
+          path: validation-output/
+          if-no-files-found: warn
