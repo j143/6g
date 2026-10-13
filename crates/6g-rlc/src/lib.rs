@@ -25,13 +25,7 @@ enum SegmentInfo {
     Middle = 0b11,
 }
 
-fn build_pdu(
-    si: SegmentInfo,
-    sn: u16,
-    data: &[u8],
-    is_am: bool,
-    poll: bool,
-) -> Payload {
+fn build_pdu(si: SegmentInfo, sn: u16, data: &[u8], is_am: bool, poll: bool) -> Payload {
     let si_bits = si as u8;
 
     let flags = if is_am {
@@ -264,8 +258,7 @@ impl RlcEntity {
     }
 
     pub fn process_status(&mut self, status: &StatusPdu) -> Vec<Payload> {
-        let nacked: std::collections::HashSet<u16> =
-            status.nack_sns.iter().copied().collect();
+        let nacked: std::collections::HashSet<u16> = status.nack_sns.iter().copied().collect();
 
         self.retx_buffer.retain(|(sequence_number, _)| {
             *sequence_number >= status.ack_sn || nacked.contains(sequence_number)
