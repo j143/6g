@@ -264,7 +264,8 @@ impl PdcpEntity {
 
     /// Process an incoming PDCP PDU: decompress, verify SN, replay-detect.
     ///
-    /// Returns `Some(payload)` if the PDU is valid and in-window, `None` otherwise.
+    /// Returns `Some(payload)` if the PDU is valid, non-empty, and in-window;
+    /// `None` otherwise.
     pub fn process_rx(&mut self, pdu: Payload) -> Option<Payload> {
         let sn_bytes_len = if self.config.sn_length <= 12 { 2 } else { 3 };
         let (payload, sn) = if self.config.rohc_enabled {
@@ -276,6 +277,11 @@ impl PdcpEntity {
             let sn = decode_sn(&pdu[..sn_bytes_len]);
             (pdu[sn_bytes_len..].to_vec(), sn)
         };
+
+        // A PDU with a valid SN but no payload is malformed for this baseline.
+        if payload.is_empty() {
+            return None;
+        }
 
         // Replay / reorder detection.
         if !self.is_in_window(sn) {
