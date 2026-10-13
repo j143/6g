@@ -157,7 +157,7 @@ impl RlcEntity {
             let sn = self.tx_sn;
             self.pdu_count += 1;
 
-            let poll = is_am && self.pdu_count % POLL_INTERVAL == 0;
+            let poll = is_am && self.pdu_count.is_multiple_of(POLL_INTERVAL);
             let pdu = build_pdu(si, sn, chunk, is_am, poll);
 
             if is_am {
@@ -210,26 +210,20 @@ impl RlcEntity {
             return Some(payload);
         }
 
-        let Some(first_position) = self
+        let first_position = self
             .rx_segments
             .iter()
-            .position(|(_, _, si)| *si == SegmentInfo::First)
-        else {
-            return None;
-        };
+            .position(|(_, _, si)| *si == SegmentInfo::First)?;
 
         let first_sn = self.rx_segments[first_position].0;
         let mut chain = vec![first_sn];
         let mut next_sn = first_sn.wrapping_add(1);
 
         loop {
-            let Some(position) = self
+            let position = self
                 .rx_segments
                 .iter()
-                .position(|(sequence_number, _, _)| *sequence_number == next_sn)
-            else {
-                return None;
-            };
+                .position(|(sequence_number, _, _)| *sequence_number == next_sn)?;
 
             let is_last = self.rx_segments[position].2 == SegmentInfo::Last;
             chain.push(next_sn);
