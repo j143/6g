@@ -1,0 +1,29 @@
+{
+    "experiment": "exp_012_sns3_ntn_link_budget",
+    "description": "SNS3 satellite simulator vs 6g-ntn + 6g-phy LEO Ka-band link budget cross-check",
+    "link_budget": {
+        "frequency_hz": 20e9,
+        "eirp_dbw": 40.0,
+        "g_t_db_per_k": 15.0,
+        "atm_loss_db": 0.5,
+        "k_boltzmann_dbw_hz_k": -228.6,
+        "bandwidth_hz": 500e6
+    },
+    "altitudes_km": [200, 550, 1200, 2000],
+    "tolerances": {
+        "propagation_delay_pct": 1.0,
+        "fspl_pct": 1.0,
+        "cnr_pct": 1.0
+    },
+    "simulator": {
+        "name": "SNS3 (Satellite Network Simulator 3)",
+        "url": "https://github.com/sns3/sns3-satellite",
+        "licence": "GPL-3.0",
+        "backed_by": "ESA / ISAE-SUPAERO"
+    },
+    "references": {
+        "link_budget": "ITU-R S.465-6",
+        "propagation": "ITU-R P.618-13",
+        "3gpp_ntn": "3GPP TR 38.821 v16.0.0"
+    }
+}
