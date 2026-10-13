@@ -1,8 +1,8 @@
+use serde_json::json;
 use sixg_common::types::{BearerId, Payload};
 use sixg_mac::harq::{HarqManager, HarqState};
 use sixg_pdcp::{CipheringAlgorithm, IntegrityAlgorithm, PdcpConfig, PdcpEntity};
 use sixg_rlc::{RlcEntity, RlcMode};
-use serde_json::json;
 
 use std::fs;
 use std::path::PathBuf;
@@ -94,8 +94,10 @@ impl E2eFixture {
                     let dropped = rlc_pdus.remove(*index);
                     let missing_sn = extract_rlc_sn(&dropped);
 
-                    self.trace
-                        .record("fault", format!("drop_rlc_pdu index={index} sn={missing_sn}"));
+                    self.trace.record(
+                        "fault",
+                        format!("drop_rlc_pdu index={index} sn={missing_sn}"),
+                    );
 
                     let status = self.rlc_rx.generate_status(vec![missing_sn]);
                     let retx = self.rlc_tx.process_status(&status);
@@ -142,10 +144,8 @@ impl E2eFixture {
         }
 
         let decoded = self.harq.chase_combine(0, 10.0);
-        self.trace.record(
-            "harq",
-            format!("chase_combine process=0 decoded={decoded}"),
-        );
+        self.trace
+            .record("harq", format!("chase_combine process=0 decoded={decoded}"));
 
         if decoded {
             self.harq.acknowledge(0);
@@ -165,8 +165,7 @@ impl E2eFixture {
         fs::create_dir_all(dir.join("decisions")).expect("create decisions directory");
 
         fs::write(
-            dir.join("traces")
-                .join(format!("{scenario}.json")),
+            dir.join("traces").join(format!("{scenario}.json")),
             serde_json::to_vec_pretty(&self.trace.to_json()).expect("serialize trace"),
         )
         .expect("write trace");
@@ -178,8 +177,7 @@ impl E2eFixture {
         });
 
         fs::write(
-            dir.join("decisions")
-                .join(format!("{scenario}.json")),
+            dir.join("decisions").join(format!("{scenario}.json")),
             serde_json::to_vec_pretty(&decision).expect("serialize decision"),
         )
         .expect("write decision");
@@ -211,16 +209,20 @@ fn clean_path_delivers_exact_payload_once() {
 
     assert_eq!(delivered, Some(payload));
 
-    assert!(fixture
-        .trace
-        .events
-        .iter()
-        .any(|event| event.layer == "pdcp" && event.event.starts_with("tx pdu")));
-    assert!(fixture
-        .trace
-        .events
-        .iter()
-        .any(|event| event.layer == "rlc" && event.event.starts_with("tx pdu_count")));
+    assert!(
+        fixture
+            .trace
+            .events
+            .iter()
+            .any(|event| event.layer == "pdcp" && event.event.starts_with("tx pdu"))
+    );
+    assert!(
+        fixture
+            .trace
+            .events
+            .iter()
+            .any(|event| event.layer == "rlc" && event.event.starts_with("tx pdu_count"))
+    );
 }
 
 #[test]
@@ -237,17 +239,20 @@ fn dropped_rlc_pdu_triggers_retransmission_and_delivery() {
 
     assert_eq!(delivered, Some(payload));
 
-    assert!(fixture
-        .trace
-        .events
-        .iter()
-        .any(|event| event.layer == "fault"
-            && event.event.contains("drop_rlc_pdu")));
-    assert!(fixture
-        .trace
-        .events
-        .iter()
-        .any(|event| event.layer == "rlc" && event.event.contains("retx_count=1")));
+    assert!(
+        fixture
+            .trace
+            .events
+            .iter()
+            .any(|event| event.layer == "fault" && event.event.contains("drop_rlc_pdu"))
+    );
+    assert!(
+        fixture
+            .trace
+            .events
+            .iter()
+            .any(|event| event.layer == "rlc" && event.event.contains("retx_count=1"))
+    );
 }
 
 #[test]

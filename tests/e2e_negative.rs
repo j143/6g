@@ -67,9 +67,7 @@ fn negative_rlc_holds_incomplete_sdu_across_receive_calls() {
     let mut pdus = tx.transmit(payload.clone());
 
     // Deliver only the first two segments now.
-    let late_segment = pdus
-        .pop()
-        .expect("segmented payload must have a last PDU");
+    let late_segment = pdus.pop().expect("segmented payload must have a last PDU");
 
     assert_eq!(
         rx.receive(pdus),
