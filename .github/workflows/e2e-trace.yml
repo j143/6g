@@ -1,0 +1,42 @@
+name: E2E trace artifacts
+
+on:
+  push:
+    branches:
+      - feat/e2e-pcap-trace
+    paths:
+      - "crates/6g-trace/**"
+      - ".github/workflows/e2e-trace.yml"
+  pull_request:
+    paths:
+      - "crates/6g-trace/**"
+      - ".github/workflows/e2e-trace.yml"
+  workflow_dispatch:
+
+jobs:
+  generate-trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run trace tests
+        run: cargo test -p sixg-trace
+
+      - name: Generate simulated E2E trace
+        run: |
+          cargo run -p sixg-trace --bin e2e_call_establishment \
+            -- --out artifacts/e2e-call-establishment.pcap \
+               --json artifacts/e2e-call-establishment.json \
+               --seed 42
+
+      - name: Upload trace artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-call-establishment-trace
+          path: |
+            artifacts/e2e-call-establishment.pcap
+            artifacts/e2e-call-establishment.json
+          retention-days: 7
+          if-no-files-found: error
