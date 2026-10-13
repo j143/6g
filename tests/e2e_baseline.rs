@@ -38,16 +38,10 @@ impl Trace {
 
     fn to_json(&self) -> serde_json::Value {
         json!({
-            "events": self
-                .events
-                .iter()
-                .map(|event| {
-                    json!({
-                        "layer": event.layer,
-                        "event": event.event,
-                    })
-                })
-                .collect::<Vec<_>>(),
+            "events": self.events.iter().map(|event| json!({
+                "layer": event.layer,
+                "event": event.event,
+            })).collect::<Vec<_>>(),
         })
     }
 }
@@ -100,10 +94,8 @@ impl E2eFixture {
                     let dropped = rlc_pdus.remove(*index);
                     let missing_sn = extract_rlc_sn(&dropped);
 
-                    self.trace.record(
-                        "fault",
-                        format!("drop_rlc_pdu index={index} sn={missing_sn}"),
-                    );
+                    self.trace
+                        .record("fault", format!("drop_rlc_pdu index={index} sn={missing_sn}"));
 
                     let status = self.rlc_rx.generate_status(vec![missing_sn]);
                     let retx = self.rlc_tx.process_status(&status);
@@ -150,8 +142,10 @@ impl E2eFixture {
         }
 
         let decoded = self.harq.chase_combine(0, 10.0);
-        self.trace
-            .record("harq", format!("chase_combine process=0 decoded={decoded}"));
+        self.trace.record(
+            "harq",
+            format!("chase_combine process=0 decoded={decoded}"),
+        );
 
         if decoded {
             self.harq.acknowledge(0);
@@ -171,7 +165,8 @@ impl E2eFixture {
         fs::create_dir_all(dir.join("decisions")).expect("create decisions directory");
 
         fs::write(
-            dir.join("traces").join(format!("{scenario}.json")),
+            dir.join("traces")
+                .join(format!("{scenario}.json")),
             serde_json::to_vec_pretty(&self.trace.to_json()).expect("serialize trace"),
         )
         .expect("write trace");
@@ -183,7 +178,8 @@ impl E2eFixture {
         });
 
         fs::write(
-            dir.join("decisions").join(format!("{scenario}.json")),
+            dir.join("decisions")
+                .join(format!("{scenario}.json")),
             serde_json::to_vec_pretty(&decision).expect("serialize decision"),
         )
         .expect("write decision");

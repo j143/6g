@@ -263,7 +263,14 @@ impl RlcEntity {
     /// Parse PDUs and attempt SDU reassembly.
     fn reassemble(&mut self, pdus: Vec<Payload>) -> Option<Payload> {
         for pdu in pdus {
-            if let Some((si, _is_data, _poll, sn, offset)) = parse_pdu_header(&pdu) {
+            if let Some((si, is_data, _poll, sn, offset)) = parse_pdu_header(&pdu) {
+                // Control PDUs are not application data and must not enter the
+                // SDU reassembly buffer. A complete control-plane implementation
+                // would dispatch them to a dedicated control-PDU handler.
+                if !is_data {
+                    continue;
+                }
+
                 let payload = pdu[offset..].to_vec();
                 self.rx_segments.push((sn, payload, si));
             }
