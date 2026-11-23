@@ -55,6 +55,14 @@ Key types:
 
 Free function `leo_propagation_delay_ms(altitude: Distance) -> f64` computes one-way delay in ms from the satellite altitude.  The return type is raw `f64` (pre-existing code); future work should wrap this in `Duration` per AGENTS.md Rule 2.
 
+## NTN Call Handover (`call.rs`)
+
+`NtnCallScenario` models a minimal simulated NTN data-session flow: a UE is initially served by a 550 km LEO satellite, sends a payload, evaluates a low-elevation NTN-to-terrestrial handover, completes the handover, and sends a subsequent payload through a terrestrial gNB.
+
+`NtnServingNode` identifies the active serving node as either `LeoSatellite` or `TerrestrialGnb`. `NtnCallEvent` records the observable flow: attachment, payload send/delivery, handover evaluation/completion, and terrestrial attachment. `NtnCallError` prevents a handover without a preceding `HandoverDecision::Proceed` and rejects empty payloads.
+
+The payload transport is currently a placeholder echo. It does not exercise a real PHY channel, CRC, RRC procedure, or core-network mobility path.
+
 ## What This Crate Does NOT Do
 
 - Does not implement waveform or channel models — import from `6g-phy`.

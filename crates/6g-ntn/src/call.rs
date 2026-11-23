@@ -7,7 +7,8 @@
 //! This is a **simulated NTN data-session handover**, not an RRC-controlled
 //! mobility procedure or a 3GPP NTN conformance test.
 
-use crate::handover::{HandoverDecision, HandoverTrigger, NtnHandoverManager, NtnNode};
+use crate::handover::{HandoverDecision, HandoverTrigger, NtnHandoverManager};
+use crate::NtnNode;
 use sixg_common::types::{BearerId, NodeId, Position3D, UeId};
 use thiserror::Error;
 
