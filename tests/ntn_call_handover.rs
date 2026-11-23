@@ -1,6 +1,6 @@
+use sixg_common::types::{BearerId, NodeId, UeId};
 use sixg_ntn::call::{NtnCallError, NtnCallEvent, NtnCallScenario, NtnServingNode};
 use sixg_ntn::handover::HandoverDecision;
-use sixg_common::types::{BearerId, NodeId, UeId};
 
 fn scenario() -> NtnCallScenario {
     NtnCallScenario::leo_to_terrestrial(UeId(1), BearerId(1), NodeId(100))
