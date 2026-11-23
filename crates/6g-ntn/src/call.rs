@@ -7,8 +7,8 @@
 //! This is a **simulated NTN data-session handover**, not an RRC-controlled
 //! mobility procedure or a 3GPP NTN conformance test.
 
-use crate::handover::{HandoverDecision, HandoverTrigger, NtnHandoverManager};
 use crate::NtnNode;
+use crate::handover::{HandoverDecision, HandoverTrigger, NtnHandoverManager};
 use sixg_common::types::{BearerId, NodeId, Position3D, UeId};
 use thiserror::Error;
 
@@ -33,7 +33,7 @@ pub enum NtnCallEvent {
 }
 
 /// Errors returned by the NTN call-handover scenario.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum NtnCallError {
     #[error("handover has not been triggered")]
     HandoverNotTriggered,
@@ -60,10 +60,7 @@ pub struct NtnCallScenario {
 impl NtnCallScenario {
     /// Create a scenario initially served by a 550 km LEO satellite.
     pub fn leo_to_terrestrial(ue: UeId, bearer: BearerId, terrestrial_node: NodeId) -> Self {
-        let satellite = NtnNode::leo_satellite(
-            1,
-            Position3D::new(0.0, 0.0, 550_000.0),
-        );
+        let satellite = NtnNode::leo_satellite(1, Position3D::new(0.0, 0.0, 550_000.0));
 
         let mut scenario = Self {
             ue,
@@ -78,6 +75,21 @@ impl NtnCallScenario {
 
         scenario.events.push(NtnCallEvent::AttachedToLeo);
         scenario
+    }
+
+    /// Return the UE associated with the scenario.
+    pub fn ue(&self) -> UeId {
+        self.ue
+    }
+
+    /// Return the bearer associated with the scenario.
+    pub fn bearer(&self) -> BearerId {
+        self.bearer
+    }
+
+    /// Return the terrestrial target node.
+    pub fn terrestrial_node(&self) -> NodeId {
+        self.terrestrial_node
     }
 
     /// Return the currently selected serving node.
