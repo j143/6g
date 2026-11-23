@@ -10,6 +10,7 @@
 //! * Dynamic topology management
 //! * Seamless handover between NTN and terrestrial segments (see [`handover`])
 
+pub mod call;
 pub mod handover;
 
 use serde::{Deserialize, Serialize};
