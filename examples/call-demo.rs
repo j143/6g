@@ -1,4 +1,4 @@
-use sixg_scenario::{CallDemoScenario, CallDemoError};
+use sixg_scenario::{CallDemoError, CallDemoScenario};
 
 fn main() -> Result<(), CallDemoError> {
     let mut scenario = CallDemoScenario::new();

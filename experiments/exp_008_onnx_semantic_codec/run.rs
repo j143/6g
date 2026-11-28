@@ -215,7 +215,7 @@ fn word_hash(word: &str) -> usize {
 }
 
 /// Truncate a string to at most `max_len` bytes at a valid UTF-8 character boundary.
-fn truncate<'a>(s: &'a str, max_len: usize) -> &'a str {
+fn truncate(s: &str, max_len: usize) -> &str {
     if s.len() <= max_len {
         return s;
     }

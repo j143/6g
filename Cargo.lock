@@ -498,6 +498,7 @@ dependencies = [
  "sixg-phy",
  "sixg-rlc",
  "sixg-rrc",
+ "sixg-scenario",
  "sixg-semantic",
  "tracing",
  "tracing-subscriber",
@@ -562,6 +563,8 @@ dependencies = [
  "criterion",
  "serde",
  "sixg-common",
+ "sixg-pdcp",
+ "sixg-rlc",
  "thiserror",
 ]
 
@@ -601,6 +604,19 @@ dependencies = [
  "serde",
  "sixg-common",
  "sixg-pdcp",
+ "thiserror",
+]
+
+[[package]]
+name = "sixg-scenario"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sixg-common",
+ "sixg-mac",
+ "sixg-pdcp",
+ "sixg-rlc",
  "thiserror",
 ]
 

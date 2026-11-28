@@ -7,11 +7,11 @@
 //! implement a real waveform, channel, synchronization, demodulation, decoding,
 //! or CRC path.
 
+use serde_json::json;
 use sixg_common::types::{BearerId, Payload, UeId};
 use sixg_mac::harq::HarqManager;
 use sixg_pdcp::{CipheringAlgorithm, IntegrityAlgorithm, PdcpConfig, PdcpEntity};
 use sixg_rlc::{RlcEntity, RlcMode};
-use serde_json::json;
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
@@ -189,7 +189,12 @@ impl CallDemoScenario {
             deterministic_payload(1_200),
             deterministic_payload(1_200),
         ];
-        let faults = [CallFault::None, CallFault::DropRlcPdu, CallFault::CorruptPhy];
+        let total_payloads = payloads.len();
+        let faults = [
+            CallFault::None,
+            CallFault::DropRlcPdu,
+            CallFault::CorruptPhy,
+        ];
 
         for (payload, fault) in payloads.into_iter().zip(faults) {
             self.send_payload(payload, fault)?;
@@ -199,7 +204,7 @@ impl CallDemoScenario {
 
         Ok(CallDemoReport {
             delivered_payloads: self.delivered_payloads,
-            total_payloads: payloads.len(),
+            total_payloads,
             events: self.events.clone(),
         })
     }
@@ -233,6 +238,7 @@ impl CallDemoScenario {
                     rlc_pdus.extend(retransmissions);
                 }
             }
+
             CallFault::CorruptPhy => {
                 if let Some(pdu) = rlc_pdus.first_mut() {
                     pdu[0] ^= 0x01;
@@ -298,6 +304,12 @@ impl CallDemoScenario {
     }
 }
 
+impl Default for CallDemoScenario {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn extract_rlc_sn(pdu: &[u8]) -> u16 {
     ((pdu[1] as u16) << 8) | (pdu[2] as u16)
 }
@@ -313,12 +325,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn happy_path_delivers_all_payloads() {
-        let mut scenario = CallDemoScenario::new();
+    fn complete_scenario_delivers_all_payloads_and_recovers_faults() {
+        let mut scenario = CallDemoScenario::default();
         let report = scenario.run().unwrap();
 
         assert!(report.passed());
         assert_eq!(report.delivered_payloads, 3);
-        assert!(!report.events.contains(&CallEvent::RlcPduLost));
+        assert!(report.events.contains(&CallEvent::RlcPduLost));
+        assert!(report.events.contains(&CallEvent::PhyCorruptionDetected));
     }
 }

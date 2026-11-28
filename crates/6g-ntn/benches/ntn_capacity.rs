@@ -9,10 +9,10 @@
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use sixg_common::types::Position3D;
-use sixg_common::types::{Distance, PowerDb, UeId};
+use sixg_common::types::{Distance, UeId};
 use sixg_ntn::{
     NtnLayer, NtnNode,
-    handover::{HandoverDecision, HandoverTrigger, NtnHandoverManager, leo_propagation_delay_ms},
+    handover::{HandoverTrigger, NtnHandoverManager, leo_propagation_delay_ms},
 };
 
 /// Benchmark handover evaluation across altitude tiers (LEO / HAPS / GEO).
