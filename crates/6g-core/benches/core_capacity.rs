@@ -46,13 +46,12 @@ fn bench_session_establishment(c: &mut Criterion) {
                 let mut sessions = 0usize;
                 for i in 0..n {
                     let ue = UeId(i as u64);
-                    if core.register_ue(ue, 1) {
-                        if core
-                            .establish_session(ue, SliceType::EmBb, PduSessionType::Ip)
+                    if core.register_ue(ue, 1)
+                        && core
+                            .establish_session(ue, SliceType::EMbb, PduSessionType::Ip)
                             .is_some()
-                        {
-                            sessions += 1;
-                        }
+                    {
+                        sessions += 1;
                     }
                 }
                 black_box(sessions)

@@ -153,38 +153,32 @@ fn parse_gnb_yaml(yaml: &str) -> UeransimGnbConfig {
             continue;
         }
         // mcc: '999' or mcc: 999
-        if trimmed.starts_with("mcc:") {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                let raw = v.trim().trim_matches('\'').trim_matches('"');
-                if let Ok(n) = raw.parse::<u16>() {
-                    mcc = n;
-                }
-            }
+        if trimmed.starts_with("mcc:")
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().trim_matches('\'').trim_matches('"').parse::<u16>()
+        {
+            mcc = n;
         }
         // mnc: '70' or mnc: 70
-        if trimmed.starts_with("mnc:") {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                let raw = v.trim().trim_matches('\'').trim_matches('"');
-                if let Ok(n) = raw.parse::<u16>() {
-                    mnc = n;
-                }
-            }
+        if trimmed.starts_with("mnc:")
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().trim_matches('\'').trim_matches('"').parse::<u16>()
+        {
+            mnc = n;
         }
         // tac: 1
-        if trimmed.starts_with("tac:") {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                if let Ok(n) = v.trim().parse::<u32>() {
-                    tac = n;
-                }
-            }
+        if trimmed.starts_with("tac:")
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().parse::<u32>()
+        {
+            tac = n;
         }
         // - sst: 1
-        if trimmed.starts_with("- sst:") {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                if let Ok(n) = v.trim().parse::<u8>() {
-                    sst = n;
-                }
-            }
+        if trimmed.starts_with("- sst:")
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().parse::<u8>()
+        {
+            sst = n;
         }
     }
 
@@ -369,9 +363,9 @@ fn main() {
     println!("{}", "-".repeat(45));
 
     let mut rlc_ok_count = 0usize;
-    for i in 0..cfg.ue_count {
+    for (i, grant) in session_grants.iter().enumerate().take(cfg.ue_count) {
         let ue = UeId(cfg.ue_id_base + i as u64);
-        let ue_ip = session_grants[i].ip_addr.octets();
+        let ue_ip = grant.ip_addr.octets();
         let sdu = build_ping_payload(ue_ip, (i + 1) as u16, cfg.ping_payload_bytes);
 
         let mut tx = RlcEntity::new(BearerId(1), RlcMode::Am);
@@ -412,9 +406,9 @@ fn main() {
 
     // Each UE gets its own gNB node to isolate PDCP state.
     let total_upf_before = core.upf.stats.bytes_uplink;
-    for i in 0..cfg.ue_count {
+    for (i, grant) in session_grants.iter().enumerate().take(cfg.ue_count) {
         let ue = UeId(cfg.ue_id_base + i as u64);
-        let ue_ip = session_grants[i].ip_addr.octets();
+        let ue_ip = grant.ip_addr.octets();
         let ping = build_ping_payload(ue_ip, 1, cfg.ping_payload_bytes);
 
         let upf_before = core.upf.stats.bytes_uplink;
@@ -516,10 +510,12 @@ fn main() {
         "UPF must have received at least {min} B (total pings + PDCP overhead)",
         min = cfg.ue_count * cfg.ping_payload_bytes
     );
-    assert!(
-        NAS_RTRIPS_6G < NAS_RTRIPS_5G,
-        "6G registration must need fewer RTTs than 5G NAS"
-    );
+    const {
+        assert!(
+            NAS_RTRIPS_6G < NAS_RTRIPS_5G,
+            "6G registration must need fewer RTTs than 5G NAS"
+        );
+    }
 
     // -----------------------------------------------------------------------
     // Summary

@@ -1,6 +1,6 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Uses the official Rust slim image so cargo + rustc are pre-installed.
-FROM rust:1.87-slim AS builder
+FROM rust:1.100.0-slim AS builder
 
 WORKDIR /build
 
@@ -8,6 +8,7 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 COPY src/ src/
+COPY examples/ examples/
 COPY experiments/ experiments/
 
 # Build the sixg-bench binary and all example experiment binaries.

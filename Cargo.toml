@@ -13,6 +13,10 @@ name = "sixg-bench"
 path = "src/bin/bench.rs"
 
 [[example]]
+name = "call-demo"
+path = "examples/call-demo.rs"
+
+[[example]]
 name = "exp_001_dfrc_pareto_frontier"
 path = "experiments/exp_001_dfrc_pareto_frontier/run.rs"
 
@@ -60,6 +64,7 @@ sixg-ai      = { path = "crates/6g-ai" }
 sixg-ntn     = { path = "crates/6g-ntn" }
 sixg-semantic = { path = "crates/6g-semantic" }
 sixg-core    = { path = "crates/6g-core" }
+sixg-scenario = { path = "crates/6g-scenario" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
@@ -93,6 +98,7 @@ members = [
     "crates/6g-ntn",
     "crates/6g-semantic",
     "crates/6g-core",
+    "crates/6g-scenario",
 ]
 
 [workspace.package]

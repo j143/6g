@@ -216,45 +216,46 @@ fn parse_amf_yaml_str(yaml: &str, version: &str) -> Result<Open5gsAmfConfig, Str
         } else if trimmed.starts_with("guami:") || trimmed.starts_with("tai:") {
             in_plmn_support = false;
         }
-        if trimmed.starts_with("mcc:") && !mcc_found {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                if let Ok(n) = v.trim().parse() {
-                    mcc = n;
-                    mcc_found = true;
-                }
-            }
+        if trimmed.starts_with("mcc:")
+            && !mcc_found
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().parse()
+        {
+            mcc = n;
+            mcc_found = true;
         }
-        if trimmed.starts_with("mnc:") && !mnc_found {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                if let Ok(n) = v.trim().parse() {
-                    mnc = n;
-                    mnc_found = true;
-                }
-            }
+        if trimmed.starts_with("mnc:")
+            && !mnc_found
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().parse()
+        {
+            mnc = n;
+            mnc_found = true;
         }
-        if trimmed.starts_with("tac:") && !tac_found {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                if let Ok(n) = v.trim().parse::<u32>() {
-                    tac = n;
-                    tac_found = true;
-                }
-            }
+        if trimmed.starts_with("tac:")
+            && !tac_found
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().parse::<u32>()
+        {
+            tac = n;
+            tac_found = true;
         }
-        if trimmed.starts_with("- sst:") && in_plmn_support && !sst_found {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                if let Ok(n) = v.trim().parse() {
-                    sst = n;
-                    sst_found = true;
-                }
-            }
+        if trimmed.starts_with("- sst:")
+            && in_plmn_support
+            && !sst_found
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().parse()
+        {
+            sst = n;
+            sst_found = true;
         }
-        if trimmed.starts_with("port:") && !sbi_port_found {
-            if let Some(v) = trimmed.split(':').nth(1) {
-                if let Ok(n) = v.trim().parse() {
-                    sbi_port = n;
-                    sbi_port_found = true;
-                }
-            }
+        if trimmed.starts_with("port:")
+            && !sbi_port_found
+            && let Some(v) = trimmed.split(':').nth(1)
+            && let Ok(n) = v.trim().parse()
+        {
+            sbi_port = n;
+            sbi_port_found = true;
         }
     }
     Ok(Open5gsAmfConfig {
@@ -356,22 +357,22 @@ fn detect_metrics_addr(docker_name: &str) -> Option<String> {
     std::thread::sleep(Duration::from_millis(METRICS_ADDR_INITIAL_DELAY_MS));
     for _ in 0..METRICS_ADDR_MAX_RETRIES {
         // Check the native AMF log file (written by ppa-installed binary).
-        if let Ok(contents) = std::fs::read_to_string("/var/log/open5gs/amf.log") {
-            if let Some(addr) = extract_metrics_addr_from_log(&contents) {
-                return Some(addr);
-            }
+        if let Ok(contents) = std::fs::read_to_string("/var/log/open5gs/amf.log")
+            && let Some(addr) = extract_metrics_addr_from_log(&contents)
+        {
+            return Some(addr);
         }
         // For Docker: scan the container logs.
-        if !docker_name.is_empty() {
-            if let Ok(out) = Command::new("docker").args(["logs", docker_name]).output() {
-                let log = format!(
-                    "{}\n{}",
-                    String::from_utf8_lossy(&out.stdout),
-                    String::from_utf8_lossy(&out.stderr)
-                );
-                if let Some(addr) = extract_metrics_addr_from_log(&log) {
-                    return Some(addr);
-                }
+        if !docker_name.is_empty()
+            && let Ok(out) = Command::new("docker").args(["logs", docker_name]).output()
+        {
+            let log = format!(
+                "{}\n{}",
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            );
+            if let Some(addr) = extract_metrics_addr_from_log(&log) {
+                return Some(addr);
             }
         }
         std::thread::sleep(Duration::from_millis(METRICS_ADDR_RETRY_MS));
