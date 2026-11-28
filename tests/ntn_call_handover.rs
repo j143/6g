@@ -1,7 +1,5 @@
 use sixg_common::types::{BearerId, NodeId, UeId};
-use sixg_ntn::call::{
-    NtnCallError, NtnCallEvent, NtnCallScenario, NtnServingNode, NtnTransport,
-};
+use sixg_ntn::call::{NtnCallError, NtnCallEvent, NtnCallScenario, NtnServingNode, NtnTransport};
 use sixg_ntn::handover::HandoverDecision;
 
 fn scenario() -> NtnCallScenario {
