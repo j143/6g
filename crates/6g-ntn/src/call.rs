@@ -2,14 +2,17 @@
 //!
 //! This module models a UE that is initially served by a LEO satellite and
 //! later moves to a terrestrial gNB. It records the observable call-flow
-//! events and guards the handover transition.
+//! events, performs PDCP/RLC payload round trips, and guards the handover
+//! transition.
 //!
 //! This is a **simulated NTN data-session handover**, not an RRC-controlled
 //! mobility procedure or a 3GPP NTN conformance test.
 
 use crate::NtnNode;
 use crate::handover::{HandoverDecision, HandoverTrigger, NtnHandoverManager};
-use sixg_common::types::{BearerId, NodeId, Position3D, UeId};
+use sixg_common::types::{BearerId, NodeId, Payload, Position3D, UeId};
+use sixg_pdcp::{CipheringAlgorithm, IntegrityAlgorithm, PdcpConfig, PdcpEntity};
+use sixg_rlc::{RlcEntity, RlcMode};
 use thiserror::Error;
 
 /// Serving node selected for the NTN call scenario.
@@ -39,19 +42,101 @@ pub enum NtnCallError {
     HandoverNotTriggered,
     #[error("payload must not be empty")]
     InvalidPayload,
+    #[error("scenario requires an NTN payload and a terrestrial payload")]
+    InsufficientPayloads,
+    #[error("transport failed to deliver the payload")]
+    TransportDeliveryFailed,
+}
+
+/// Transport boundary used by an NTN call scenario.
+///
+/// The first implementation performs a PDCP and RLC round trip. It does not
+/// exercise a real PHY channel, CRC, or radio link.
+pub trait NtnTransport {
+    /// Send a payload through the transport and return the received payload.
+    fn send(&mut self, payload: &[u8]) -> Result<Payload, NtnCallError>;
+}
+
+/// PDCP/RLC transport used for each serving leg.
+///
+/// The transmit and receive entities are independent, so delivery is a real
+/// protocol round trip rather than an echo.
+pub struct PdcpRlcTransport {
+    bearer: BearerId,
+    tx_pdcp: PdcpEntity,
+    rx_pdcp: PdcpEntity,
+    tx_rlc: RlcEntity,
+    rx_rlc: RlcEntity,
+}
+
+impl PdcpRlcTransport {
+    /// Create independent PDCP and RLC entities for one bearer.
+    pub fn new(bearer: BearerId) -> Self {
+        let config = PdcpConfig {
+            bearer,
+            ciphering: CipheringAlgorithm::Nea0,
+            integrity: IntegrityAlgorithm::Nia0,
+            rohc_enabled: false,
+            sn_length: 12,
+        };
+
+        Self {
+            bearer,
+            tx_pdcp: PdcpEntity::new(config.clone()),
+            rx_pdcp: PdcpEntity::new(config),
+            tx_rlc: RlcEntity::new(bearer, RlcMode::Am),
+            rx_rlc: RlcEntity::new(bearer, RlcMode::Am),
+        }
+    }
+
+    /// Re-establish the transport with fresh PDCP and RLC state.
+    pub fn reset(&mut self) {
+        *self = Self::new(self.bearer);
+    }
+}
+
+impl NtnTransport for PdcpRlcTransport {
+    fn send(&mut self, payload: &[u8]) -> Result<Payload, NtnCallError> {
+        if payload.is_empty() {
+            return Err(NtnCallError::InvalidPayload);
+        }
+
+        let pdcp_pdu = self.tx_pdcp.process_tx(payload.to_vec());
+        let rlc_pdus = self.tx_rlc.transmit(pdcp_pdu);
+
+        let rlc_sdu = self
+            .rx_rlc
+            .receive(rlc_pdus)
+            .ok_or(NtnCallError::TransportDeliveryFailed)?;
+
+        self.rx_pdcp
+            .process_rx(rlc_sdu)
+            .ok_or(NtnCallError::TransportDeliveryFailed)
+    }
+}
+
+/// Observable result of a complete NTN-to-terrestrial call scenario.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NtnCallReport {
+    /// Payload delivered through the initial LEO path.
+    pub ntn_payload: Payload,
+    /// Payload delivered through the terrestrial path after handover.
+    pub terrestrial_payload: Payload,
+    /// Handover decision produced by the NTN handover manager.
+    pub handover_decision: HandoverDecision,
+    /// Serving node after handover completion.
+    pub serving_node_after_handover: NtnServingNode,
 }
 
 /// A minimal NTN-to-terrestrial data-call handover scenario.
-///
-/// The payload transport is currently a placeholder: `send_payload` returns an
-/// exact copy of its input. It does not exercise a real PHY channel, CRC, or
-/// radio link.
 pub struct NtnCallScenario {
     ue: UeId,
     bearer: BearerId,
     satellite: NtnNode,
     terrestrial_node: NodeId,
     handover: NtnHandoverManager,
+    ntn_transport: PdcpRlcTransport,
+    terrestrial_transport: PdcpRlcTransport,
     serving_node: NtnServingNode,
     handover_triggered: bool,
     events: Vec<NtnCallEvent>,
@@ -68,6 +153,8 @@ impl NtnCallScenario {
             satellite,
             terrestrial_node,
             handover: NtnHandoverManager::new(),
+            ntn_transport: PdcpRlcTransport::new(bearer),
+            terrestrial_transport: PdcpRlcTransport::new(bearer),
             serving_node: NtnServingNode::LeoSatellite,
             handover_triggered: false,
             events: Vec::new(),
@@ -122,7 +209,8 @@ impl NtnCallScenario {
     /// Complete the NTN-to-terrestrial handover.
     ///
     /// Returns an error unless a preceding handover evaluation returned
-    /// [`HandoverDecision::Proceed`].
+    /// [`HandoverDecision::Proceed`]. The terrestrial transport is
+    /// re-established with fresh PDCP and RLC state.
     pub fn handover_to_terrestrial(&mut self) -> Result<(), NtnCallError> {
         if self.serving_node == NtnServingNode::TerrestrialGnb {
             return Ok(());
@@ -132,6 +220,7 @@ impl NtnCallScenario {
             return Err(NtnCallError::HandoverNotTriggered);
         }
 
+        self.terrestrial_transport.reset();
         self.serving_node = NtnServingNode::TerrestrialGnb;
         self.events.push(NtnCallEvent::HandoverCompleted);
         self.events.push(NtnCallEvent::AttachedToTerrestrial);
@@ -139,19 +228,48 @@ impl NtnCallScenario {
     }
 
     /// Send a payload over the currently selected serving node.
-    ///
-    /// The returned payload is an exact copy of the input. This is a transport
-    /// placeholder for this milestone; it does not exercise a real PHY/channel
-    /// path.
-    pub fn send_payload(&mut self, payload: &[u8]) -> Result<Vec<u8>, NtnCallError> {
-        if payload.is_empty() {
-            return Err(NtnCallError::InvalidPayload);
-        }
-
+    pub fn send_payload(&mut self, payload: &[u8]) -> Result<Payload, NtnCallError> {
         self.events.push(NtnCallEvent::PayloadSent);
-        let delivered = payload.to_vec();
+
+        let delivered = match self.serving_node {
+            NtnServingNode::LeoSatellite => self.ntn_transport.send(payload)?,
+            NtnServingNode::TerrestrialGnb => self.terrestrial_transport.send(payload)?,
+        };
+
         self.events.push(NtnCallEvent::PayloadDelivered);
         Ok(delivered)
+    }
+
+    /// Run the complete NTN-to-terrestrial call scenario.
+    ///
+    /// The first payload is delivered through the LEO path, the handover is
+    /// evaluated and completed, and the second payload is delivered through
+    /// the re-established terrestrial path.
+    pub fn run(
+        &mut self,
+        payloads: &[&[u8]],
+        elevation_deg: f64,
+    ) -> Result<NtnCallReport, NtnCallError> {
+        if payloads.len() < 2 {
+            return Err(NtnCallError::InsufficientPayloads);
+        }
+
+        let ntn_payload = self.send_payload(payloads[0])?;
+        let handover_decision = self.evaluate_handover(elevation_deg);
+
+        if handover_decision != HandoverDecision::Proceed {
+            return Err(NtnCallError::HandoverNotTriggered);
+        }
+
+        self.handover_to_terrestrial()?;
+        let terrestrial_payload = self.send_payload(payloads[1])?;
+
+        Ok(NtnCallReport {
+            ntn_payload,
+            terrestrial_payload,
+            handover_decision,
+            serving_node_after_handover: self.serving_node(),
+        })
     }
 }
 
@@ -182,5 +300,13 @@ mod tests {
             scenario.send_payload(&[]),
             Err(NtnCallError::InvalidPayload)
         );
+    }
+
+    #[test]
+    fn pdcp_rlc_transport_round_trip() {
+        let mut transport = PdcpRlcTransport::new(BearerId(1));
+        let payload = b"ntn transport payload".to_vec();
+
+        assert_eq!(transport.send(&payload).unwrap(), payload);
     }
 }
