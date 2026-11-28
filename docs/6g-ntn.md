@@ -57,11 +57,13 @@ Free function `leo_propagation_delay_ms(altitude: Distance) -> f64` computes one
 
 ## NTN Call Handover (`call.rs`)
 
-`NtnCallScenario` models a minimal simulated NTN data-session flow: a UE is initially served by a 550 km LEO satellite, sends a payload, evaluates a low-elevation NTN-to-terrestrial handover, completes the handover, and sends a subsequent payload through a terrestrial gNB.
+`NtnCallScenario` models a minimal simulated NTN data-session flow: a UE is initially served by a 550 km LEO satellite, sends a payload through PDCP and RLC, evaluates a low-elevation NTN-to-terrestrial handover, completes the handover, and sends a subsequent payload through a re-established terrestrial PDCP/RLC bearer.
 
-`NtnServingNode` identifies the active serving node as either `LeoSatellite` or `TerrestrialGnb`. `NtnCallEvent` records the observable flow: attachment, payload send/delivery, handover evaluation/completion, and terrestrial attachment. `NtnCallError` prevents a handover without a preceding `HandoverDecision::Proceed` and rejects empty payloads.
+`NtnTransport` is the transport boundary. `PdcpRlcTransport` implements a real PDCP and RLC round trip: PDCP TX → RLC TX → RLC RX → PDCP RX. It does not exercise a real PHY channel, CRC, or radio link.
 
-The payload transport is currently a placeholder echo. It does not exercise a real PHY channel, CRC, RRC procedure, or core-network mobility path.
+`NtnServingNode` identifies the active serving node as either `LeoSatellite` or `TerrestrialGnb`. `NtnCallEvent` records the observable flow: attachment, payload send/delivery, handover evaluation/completion, and terrestrial attachment. `NtnCallError` prevents a handover without a preceding `HandoverDecision::Proceed`, rejects empty payloads, and reports insufficient scenario payloads or transport-delivery failure.
+
+`NtnCallReport` contains the NTN and terrestrial payloads, handover decision, and serving node after handover. `NtnCallScenario::run()` executes the complete NTN-to-terrestrial flow.
 
 ## What This Crate Does NOT Do
 
